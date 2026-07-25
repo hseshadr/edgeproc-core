@@ -41,6 +41,7 @@ dev = [
     "xenon>=0.9.0",
     "radon>=6.0.0",
     "poethepoet>=0.48.0",
+    "pyyaml>=6.0",  # tests/test_workflow_security.py parses .github/workflows/*.yml
 ]
 
 [dependency-groups]
@@ -53,6 +54,7 @@ dev = [
     "xenon>=0.9.0",
     "radon>=6.0.0",
     "poethepoet>=0.48.0",
+    "pyyaml>=6.0",  # tests/test_workflow_security.py parses .github/workflows/*.yml
 ]
 
 [project.urls]
