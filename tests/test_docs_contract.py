@@ -20,7 +20,11 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 IMPORT_PACKAGE = "edgeproc_core"
-REPO_SLUG = "shared-libs-python"
+#: The canonical GitHub slug. The repository was renamed `shared-libs-python` ->
+#: `edgeproc-core`; GitHub still redirects the old slug, which is exactly why a
+#: stale URL can sit in the docs for months without anyone noticing a 404.
+#: Pinning the canonical name here makes every documented URL fail loudly instead.
+REPO_SLUG = "edgeproc-core"
 
 #: Docs that carry user-facing install commands.
 INSTALL_DOCS = ("README.md", "docs/installation-guide.md")
@@ -61,6 +65,61 @@ def git_repo_available() -> bool:
     if not (ROOT / ".git").exists() or _git("rev-parse", "--git-dir").returncode != 0:
         pytest.skip("not a git checkout; cannot resolve documented refs")
     return True
+
+
+#: Public surfaces a cold reader arriving from PyPI or GitHub actually lands on.
+#: `CHANGELOG.md` is deliberately absent: its released sections are immutable
+#: history (see `test_changelog_provenance.py`) and legitimately record the old
+#: name. Its *footer links* are checked by
+#: `test_changelog_links_continue_from_the_current_release` instead.
+PUBLIC_SURFACES = (
+    "README.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "pyproject.toml",
+    "docs/installation-guide.md",
+    "docs/OPERATIONS.md",
+    "docs/vector-mgmt-architecture.md",
+    "examples/README.md",
+)
+
+#: The pre-rename GitHub slug. GitHub redirects it, so a stale link never 404s —
+#: it just quietly shows a cold reader the wrong project name.
+STALE_REPO_SLUG = "shared-libs-python"
+
+
+def _stale_slug_lines(doc: str) -> list[str]:
+    """Lines of `doc` that still name the pre-rename repository or its clone dir."""
+    markers = (f"hseshadr/{STALE_REPO_SLUG}", f"cd {STALE_REPO_SLUG}")
+    return [line for line in _read(doc).splitlines() if any(m in line for m in markers)]
+
+
+def test_no_public_surface_carries_the_pre_rename_repo_slug() -> None:
+    """The package is `edgeproc-core`; no public surface may still say otherwise.
+
+    A regression guard, not a spelling check: because GitHub redirects the old
+    slug, a stale link never 404s. The only symptom is the wrong identity.
+    """
+    offenders = {doc: _stale_slug_lines(doc) for doc in PUBLIC_SURFACES}
+    offenders = {doc: lines for doc, lines in offenders.items() if lines}
+
+    assert not offenders, (
+        f"Public surfaces still carry the pre-rename slug {STALE_REPO_SLUG!r}: "
+        f"{offenders}. The canonical repository is "
+        f"https://github.com/hseshadr/{REPO_SLUG}."
+    )
+
+
+def test_package_metadata_urls_point_at_the_canonical_repository() -> None:
+    """`[project.urls]` is what PyPI renders in the sidebar — it must be canonical."""
+    urls = tomllib.loads(_read("pyproject.toml"))["project"]["urls"]
+
+    assert urls, "pyproject declares no [project.urls]; PyPI would show no links at all"
+    for label, url in urls.items():
+        assert f"github.com/hseshadr/{REPO_SLUG}" in url, (
+            f"[project.urls] {label} = {url!r} does not point at the canonical "
+            f"repository https://github.com/hseshadr/{REPO_SLUG}."
+        )
 
 
 def test_docs_document_at_least_one_install_ref() -> None:

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Public surfaces now name the canonical repository, `hseshadr/edgeproc-core`.**
+  At `0.2.1` only the distribution and import names moved; the GitHub repository
+  kept its old slug, so badges, clone commands, install URLs, and `[project.urls]`
+  still said `shared-libs-python`. The repository has since been renamed, and
+  GitHub *redirects* the old slug — so none of those links ever 404'd, they just
+  showed a cold reader the wrong project name. `[project.urls]` is what PyPI
+  renders in its sidebar, which made the stale identity visible on the listing
+  itself. Released sections below keep the old name on purpose: they are history.
+
+### Added
+- **`tests/public_api.json` — the exported surface is now a checked-in contract.**
+  This package is the bottom of the dependency spine, so a refactor that renamed
+  or deleted a public symbol would break downstream repos at *their* import time
+  while this repository's own suite stayed green. The golden file records every
+  exported name **and every class member this package declares**, so renaming
+  `IndexManager.search` fails the build rather than shipping. Inherited machinery
+  is excluded, so a dependency bump cannot turn the guard red spuriously.
+  Regenerate an intentional change with `uv run python -m tests.test_public_api`.
+- **A regression guard for the package identity.** `test_docs_contract.py` now
+  fails if any public surface reintroduces the pre-rename slug.
+
 ## [0.2.1] — 2026-07-21
 
 First release published to PyPI as
@@ -263,11 +285,11 @@ shared-libs-python` stack going public together; live demo at https://edge-reco.
 - Full type hints and mypy strict compliance
 - Protocol-based design for extensibility
 
-[Unreleased]: https://github.com/hseshadr/shared-libs-python/compare/v0.2.1...HEAD
-[0.2.1]: https://github.com/hseshadr/shared-libs-python/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/hseshadr/shared-libs-python/compare/v0.1.4...v0.2.0
-[0.1.4]: https://github.com/hseshadr/shared-libs-python/compare/v0.1.3...v0.1.4
-[0.1.3]: https://github.com/hseshadr/shared-libs-python/compare/v0.1.2...v0.1.3
-[0.1.2]: https://github.com/hseshadr/shared-libs-python/compare/v0.1.1...v0.1.2
-[0.1.1]: https://github.com/hseshadr/shared-libs-python/compare/v0.1.0...v0.1.1
-[0.1.0]: https://github.com/hseshadr/shared-libs-python/releases/tag/v0.1.0
+[Unreleased]: https://github.com/hseshadr/edgeproc-core/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/hseshadr/edgeproc-core/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/hseshadr/edgeproc-core/compare/v0.1.4...v0.2.0
+[0.1.4]: https://github.com/hseshadr/edgeproc-core/compare/v0.1.3...v0.1.4
+[0.1.3]: https://github.com/hseshadr/edgeproc-core/compare/v0.1.2...v0.1.3
+[0.1.2]: https://github.com/hseshadr/edgeproc-core/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/hseshadr/edgeproc-core/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/hseshadr/edgeproc-core/releases/tag/v0.1.0

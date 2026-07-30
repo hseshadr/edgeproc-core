@@ -13,8 +13,8 @@ Thank you for your interest in contributing to edgeproc-core! This document prov
 
 ```bash
 # Clone the repository
-git clone https://github.com/hseshadr/shared-libs-python.git
-cd shared-libs-python
+git clone https://github.com/hseshadr/edgeproc-core.git
+cd edgeproc-core
 
 # Install dependencies
 uv sync
@@ -154,6 +154,30 @@ entry to `[Unreleased]` rather than changing the released text.
 
 Adding a `[X.Y.Z]: …/compare/…` link-reference line to the footer is fine — that
 footer is a growing index of releases, not any one release's record.
+
+### Changing the public API
+
+`tests/public_api.json` is a checked-in record of every symbol this package
+exports, down to the class members it declares. It exists because this package
+sits at the bottom of the dependency spine: deleting or renaming a public symbol
+breaks downstream repos at *their* import time, which nothing in this
+repository's own suite would otherwise notice.
+
+If `tests/test_public_api.py` fails, read which check failed:
+
+- **A symbol disappeared** — that is a breaking change. It needs a version bump
+  and a `[Unreleased]` CHANGELOG entry, not just a regenerated golden file.
+- **A symbol was added** — harmless to callers, but anything exported is a
+  promise, so record it deliberately.
+
+Either way, accept the change with:
+
+```bash
+uv run python -m tests.test_public_api
+```
+
+Review the resulting diff like any other contract change; a removed line is the
+signal the guard exists to raise.
 
 ### Benchmark figures
 

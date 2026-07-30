@@ -1,8 +1,14 @@
-"""Shared libraries for Python projects.
+"""edgeproc-core — vector partitioning and generic partition-key management.
 
-This package contains reusable libraries for various purposes.
-Currently includes vector_mgmt for vector partitioning and generic
-partition-key management.
+The bottom layer of the edge-reco / edge-proc stack. Two independent modules:
+
+- :mod:`edgeproc_core.vector_mgmt` — route embeddings into partitions and merge
+  top-k results back out, over any search backend that satisfies the
+  ``VectorIndex`` protocol.
+- :mod:`edgeproc_core.errors` — canonical error codes: classify raw failures
+  into stable codes, describe them, serialize to RFC 9457 Problem Details.
+
+Homepage: https://github.com/hseshadr/edgeproc-core
 """
 
 from importlib.metadata import PackageNotFoundError, version
