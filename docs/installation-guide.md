@@ -63,10 +63,10 @@ cannot repoint it, so it is exactly as immutable as a release:
 
 ```bash
 # uv
-uv pip install "edgeproc-core @ git+https://github.com/hseshadr/shared-libs-python.git@6cdf8475b223262821622a021c561aed9213a472"
+uv pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@6cdf8475b223262821622a021c561aed9213a472"
 
 # pip
-python -m pip install "edgeproc-core @ git+https://github.com/hseshadr/shared-libs-python.git@6cdf8475b223262821622a021c561aed9213a472"
+python -m pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@6cdf8475b223262821622a021c561aed9213a472"
 ```
 
 ### Why do source pins use a commit and not a tag?
@@ -103,8 +103,8 @@ Contributors should clone the repository so the lockfile and complete quality
 gate are available:
 
 ```bash
-git clone https://github.com/hseshadr/shared-libs-python.git
-cd shared-libs-python
+git clone https://github.com/hseshadr/edgeproc-core.git
+cd edgeproc-core
 uv sync --all-extras --dev
 uv run poe gate
 ```
@@ -112,7 +112,7 @@ uv run poe gate
 Installing the moving `main` branch is intentionally a development-only path:
 
 ```bash
-uv pip install git+https://github.com/hseshadr/shared-libs-python.git@main
+uv pip install git+https://github.com/hseshadr/edgeproc-core.git@main
 ```
 
 ## Upgrade or reinstall
@@ -128,7 +128,7 @@ For the currently documented pin:
 
 ```bash
 uv pip install --upgrade --force-reinstall \
-  "edgeproc-core @ git+https://github.com/hseshadr/shared-libs-python.git@6cdf8475b223262821622a021c561aed9213a472"
+  "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@6cdf8475b223262821622a021c561aed9213a472"
 ```
 
 ## Troubleshooting
@@ -149,7 +149,7 @@ source .venv/bin/activate
 Confirm the pinned commit exists on the public repository:
 
 ```bash
-git ls-remote https://github.com/hseshadr/shared-libs-python.git | \
+git ls-remote https://github.com/hseshadr/edgeproc-core.git | \
   grep 6cdf8475b223262821622a021c561aed9213a472
 ```
 
@@ -170,7 +170,7 @@ Prefer an explicit forced reinstall over clearing the entire shared `uv` cache:
 
 ```bash
 uv pip install --upgrade --force-reinstall \
-  "edgeproc-core @ git+https://github.com/hseshadr/shared-libs-python.git@6cdf8475b223262821622a021c561aed9213a472"
+  "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@6cdf8475b223262821622a021c561aed9213a472"
 ```
 
 The supported release line and vulnerability-reporting process are documented

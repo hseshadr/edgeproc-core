@@ -58,10 +58,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/hseshadr/shared-libs-python"
-Documentation = "https://github.com/hseshadr/shared-libs-python#readme"
-Repository = "https://github.com/hseshadr/shared-libs-python"
-Issues = "https://github.com/hseshadr/shared-libs-python/issues"
+Homepage = "https://github.com/hseshadr/edgeproc-core"
+Documentation = "https://github.com/hseshadr/edgeproc-core#readme"
+Repository = "https://github.com/hseshadr/edgeproc-core"
+Issues = "https://github.com/hseshadr/edgeproc-core/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["edgeproc_core"]

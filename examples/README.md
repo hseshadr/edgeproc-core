@@ -28,7 +28,7 @@ This directory contains example usage patterns for edgeproc-core.
 
 ```bash
 # Install the library first
-cd ~/dev/shared-libs-python
+cd ~/dev/edgeproc-core
 uv pip install -e .
 
 # Run an example

@@ -1,7 +1,7 @@
 # edgeproc-core
 
-[![CI](https://github.com/hseshadr/shared-libs-python/actions/workflows/ci.yml/badge.svg)](https://github.com/hseshadr/shared-libs-python/actions/workflows/ci.yml)
-[![Coverage](https://codecov.io/gh/hseshadr/shared-libs-python/branch/main/graph/badge.svg)](https://codecov.io/gh/hseshadr/shared-libs-python)
+[![CI](https://github.com/hseshadr/edgeproc-core/actions/workflows/ci.yml/badge.svg)](https://github.com/hseshadr/edgeproc-core/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/hseshadr/edgeproc-core/branch/main/graph/badge.svg)](https://codecov.io/gh/hseshadr/edgeproc-core)
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -92,8 +92,8 @@ asyncio.run(demo())  # → [('a', ~0.0)]  exact match, cosine distance ≈ 0
 Or run all five bundled examples end-to-end:
 
 ```bash
-git clone https://github.com/hseshadr/shared-libs-python.git
-cd shared-libs-python
+git clone https://github.com/hseshadr/edgeproc-core.git
+cd edgeproc-core
 uv sync
 bash examples/run_loop.sh
 ```
@@ -130,7 +130,7 @@ Prefer to build from source? Pin a full commit SHA — Git cannot repoint it, so
 it is exactly as immutable as a release:
 
 ```bash
-uv pip install "edgeproc-core @ git+https://github.com/hseshadr/shared-libs-python.git@6cdf8475b223262821622a021c561aed9213a472"
+uv pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@6cdf8475b223262821622a021c561aed9213a472"
 ```
 
 > **Why do source pins use a commit and not a tag?** Tags `v0.2.0` and older
@@ -141,8 +141,8 @@ uv pip install "edgeproc-core @ git+https://github.com/hseshadr/shared-libs-pyth
 
 For local development:
 ```bash
-git clone https://github.com/hseshadr/shared-libs-python.git
-cd shared-libs-python
+git clone https://github.com/hseshadr/edgeproc-core.git
+cd edgeproc-core
 uv sync
 ```
 
