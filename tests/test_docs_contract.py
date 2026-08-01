@@ -241,12 +241,43 @@ def test_readme_states_the_python_requirement_before_installing() -> None:
     )
 
 
+def _released_versions_newest_first() -> list[str]:
+    """Every released version in CHANGELOG.md, in the order the file lists them."""
+    return re.findall(r"^## \[(\d+\.\d+\.\d+)\]", _read("CHANGELOG.md"), flags=re.M)
+
+
 def test_changelog_links_continue_from_the_current_release() -> None:
+    """The compare link must span the ACTUAL previous release, not a fixed one.
+
+    This assertion used to hardcode `compare/v0.2.0...v{version}`. That was right
+    at 0.2.1 by coincidence and wrong for every release after it: cutting 0.2.2
+    forced a link claiming 0.2.2 diverged from 0.2.0, writing 0.2.1 out of the
+    range the link renders on GitHub. The predecessor is now read from the
+    changelog's own ordering, so the guard tracks the release history instead of
+    a constant that only ever agreed with it once.
+    """
     version = tomllib.loads(_read("pyproject.toml"))["project"]["version"]
     changelog = _read("CHANGELOG.md")
     repository = f"https://github.com/hseshadr/{REPO_SLUG}"
+    released = _released_versions_newest_first()
+
+    assert released[:1] == [version], (
+        f"CHANGELOG's newest released section is {released[:1]}, but pyproject "
+        f"declares {version}. Cut the section before tagging."
+    )
+    previous = released[1]
     assert f"[Unreleased]: {repository}/compare/v{version}...HEAD" in changelog
-    assert f"[{version}]: {repository}/compare/v0.2.0...v{version}" in changelog
+    assert f"[{version}]: {repository}/compare/v{previous}...v{version}" in changelog
+
+
+def test_every_released_section_carries_a_link_reference() -> None:
+    """Non-vacuity for the check above: the parse must really see the history."""
+    released = _released_versions_newest_first()
+    assert len(released) >= 2, f"changelog parse found {len(released)} releases"
+    changelog = _read("CHANGELOG.md")
+    prefix = f"https://github.com/hseshadr/{REPO_SLUG}/"
+    missing = [v for v in released if f"[{v}]: {prefix}" not in changelog]
+    assert not missing, f"released sections with no link reference: {missing}"
 
 
 def test_the_gate_measures_branch_coverage_not_just_statements() -> None:
