@@ -19,6 +19,15 @@ So the audit below is asserted against the real workflows *and* driven against
 synthetic fixtures that break it, including one carrying the literal text
 `attestations: true` inside a comment — because a guard that greps for a string
 measures the shape of a file, not the property it is supposed to hold.
+
+The third section guards the *environment* the gate runs in. `publish.yml` used
+to check out with Actions' default depth-1 clone, so `uv run poe gate` ran
+against a repository holding exactly one commit. Every history-backed check then
+reported the wrong thing: the docs-contract test called a documented install SHA
+"missing" when the truth was that this clone had never fetched it, and the
+changelog-provenance test skipped for want of tags. That is how `v0.2.2` was
+tagged and never published. A job that runs the gate must therefore check out
+with `fetch-depth: 0`.
 """
 
 import re
@@ -270,3 +279,115 @@ def test_a_workflow_that_never_publishes_is_not_flagged(tmp_path: Path) -> None:
     (tmp_path / "ci.yaml").write_text("jobs:\n  test:\n    steps:\n      - run: pytest\n")
 
     assert _audit_provenance(tmp_path) == ([], 0)
+
+
+GATE_COMMAND = "poe gate"
+CHECKOUT_ACTION = "actions/checkout"
+SHALLOW_GATE = "runs `poe gate` without `fetch-depth: 0` on actions/checkout"
+
+
+def _runs_the_gate(job: Mapping[str, object]) -> bool:
+    """Whether a step of ``job`` really runs the gate. A comment is not a step."""
+    return any(GATE_COMMAND in str(step.get("run", "")) for step in _job_steps(job))
+
+
+def _fetches_full_history(job: Mapping[str, object]) -> bool:
+    """Whether every checkout in ``job`` asks for the complete history and tags.
+
+    ``fetch-depth`` is compared as a string because GitHub coerces every action
+    input to one: the YAML integer ``0`` and the quoted ``"0"`` mean the same thing.
+    """
+    checkouts = [step for step in _job_steps(job) if _action_of(step) == CHECKOUT_ACTION]
+    return bool(checkouts) and all(
+        str(_as_mapping(step.get("with")).get("fetch-depth")) == "0" for step in checkouts
+    )
+
+
+def _gate_jobs_in(workflow: Path) -> list[tuple[str, dict[str, object]]]:
+    """Every job in ``workflow`` that runs the gate, as ``(where, job)``."""
+    document = _as_mapping(yaml.safe_load(workflow.read_text(encoding="utf-8")))
+    jobs = {name: _as_mapping(job) for name, job in _as_mapping(document.get("jobs")).items()}
+    return [(f"{workflow.name}:{name}", job) for name, job in jobs.items() if _runs_the_gate(job)]
+
+
+def _audit_history_depth(directory: Path) -> tuple[list[str], int]:
+    """Return ``(failures, gate_jobs_examined)`` for the workflows in ``directory``.
+
+    The job count is the non-vacuity guard: if the gate step is renamed, this
+    must go red rather than pass by having inspected nothing.
+    """
+    jobs = [found for path in _workflow_files(directory) for found in _gate_jobs_in(path)]
+    failures = [f"{where}: {SHALLOW_GATE}" for where, job in jobs if not _fetches_full_history(job)]
+    return failures, len(jobs)
+
+
+def test_every_job_that_runs_the_gate_checks_out_full_history() -> None:
+    """A gate run against a depth-1 clone judges history it cannot see."""
+    failures, gate_jobs = _audit_history_depth(WORKFLOWS)
+
+    assert failures == []
+    assert gate_jobs > 0, "vacuous pass: no job running the gate was examined"
+
+
+def _gate_workflow(checkout_with: str) -> str:
+    """A one-job workflow that runs the gate, parameterised on its checkout inputs."""
+    return (
+        "name: CI\non:\n  push:\n"
+        "jobs:\n  gate:\n    steps:\n"
+        f"      - uses: {CHECKOUT_ACTION}@3d3c42e5aac5ba805825da76410c181273ba90b1\n"
+        f"{checkout_with}"
+        "      - run: uv run poe gate\n"
+    )
+
+
+@pytest.mark.parametrize(
+    ("checkout_with", "label"),
+    [
+        pytest.param("", "no-with-block", id="checkout-defaults-to-depth-1"),
+        pytest.param("        with:\n          fetch-depth: 1\n", "explicit-1", id="fetch-depth-1"),
+        pytest.param(
+            "        with:\n          persist-credentials: false\n",
+            "the real publish.yml defect",
+            id="other-inputs-but-no-fetch-depth",
+        ),
+        pytest.param(
+            "        with:\n          # fetch-depth: 0  <- a comment fetches nothing\n"
+            "          persist-credentials: false\n",
+            "commented-out",
+            id="fetch-depth-only-in-a-comment",
+        ),
+    ],
+)
+def test_a_gate_job_on_a_shallow_checkout_is_rejected(
+    tmp_path: Path, checkout_with: str, label: str
+) -> None:
+    """Break the property: each fixture is a real way to gate on invisible history.
+
+    `other-inputs-but-no-fetch-depth` is the exact shape that shipped — a `with:`
+    block present, carrying `persist-credentials: false` and nothing else.
+    """
+    (tmp_path / "ci.yml").write_text(_gate_workflow(checkout_with), encoding="utf-8")
+
+    failures, gate_jobs = _audit_history_depth(tmp_path)
+
+    assert failures == [f"ci.yml:gate: {SHALLOW_GATE}"], label
+    assert gate_jobs == 1
+
+
+def test_a_gate_job_with_full_history_is_accepted(tmp_path: Path) -> None:
+    """Guard the opposite direction: the fixed workflow must not be flagged."""
+    body = _gate_workflow("        with:\n          fetch-depth: 0\n")
+    (tmp_path / "ci.yml").write_text(body, encoding="utf-8")
+
+    assert _audit_history_depth(tmp_path) == ([], 1)
+
+
+def test_a_job_that_never_runs_the_gate_may_check_out_shallow(tmp_path: Path) -> None:
+    """Scope: only gate jobs need history, and a mention in a comment is not a run."""
+    (tmp_path / "audit.yml").write_text(
+        "jobs:\n  pip-audit:\n    steps:\n"
+        f"      - uses: {CHECKOUT_ACTION}@3d3c42e5aac5ba805825da76410c181273ba90b1\n"
+        "      - run: uvx pip-audit  # not poe gate, despite naming it\n"
+    )
+
+    assert _audit_history_depth(tmp_path) == ([], 0)

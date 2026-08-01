@@ -14,7 +14,9 @@ at that ref really contains the import package the docs tell you to import.
 import re
 import subprocess
 import tomllib
+from collections.abc import Iterable
 from pathlib import Path
+from typing import NamedTuple
 
 import pytest
 
@@ -39,14 +41,64 @@ def _read(relative: str) -> str:
     return (ROOT / relative).read_text(encoding="utf-8")
 
 
-def _git(*args: str) -> subprocess.CompletedProcess[str]:
+def _git(*args: str, cwd: Path = ROOT) -> subprocess.CompletedProcess[str]:
     return subprocess.run(  # noqa: S603
         ["git", *args],  # noqa: S607
-        cwd=ROOT,
+        cwd=cwd,
         capture_output=True,
         text=True,
         check=False,
     )
+
+
+#: Why a documented install ref fails the contract. These are constants because the
+#: tests below assert the exact reason a reader is handed: naming the wrong cause is
+#: itself the defect this guard was repaired for.
+REF_MISSING = (
+    "does not resolve to a commit in this repository. A documented ref must exist "
+    "before it is published."
+)
+REF_LACKS_PACKAGE = (
+    f"does not contain the {IMPORT_PACKAGE}/ package, so `pip install ...@<ref>` "
+    f"followed by `import {IMPORT_PACKAGE}` raises ModuleNotFoundError. Point the "
+    f"docs at a ref whose tree actually ships {IMPORT_PACKAGE}/."
+)
+SHALLOW_CHECKOUT = (
+    "This checkout is SHALLOW, so Git cannot tell a ref that does not exist from one "
+    "this clone never fetched: `git rev-parse` fails identically for both. The install "
+    "contract is unverifiable here, not proven broken. Add `fetch-depth: 0` to the "
+    "actions/checkout step of the workflow running this gate (locally: "
+    "`git fetch --unshallow`)."
+)
+
+
+def _is_shallow(root: Path) -> bool:
+    """Whether the clone at ``root`` is missing the history it would be judging."""
+    return _git("rev-parse", "--is-shallow-repository", cwd=root).stdout.strip() == "true"
+
+
+def _ref_defects(root: Path, ref: str) -> list[str]:
+    """Every way ``ref`` breaks the install contract inside the clone at ``root``."""
+    if _git("rev-parse", "--verify", f"{ref}^{{commit}}", cwd=root).returncode != 0:
+        return [f"Documented install ref {ref!r} {REF_MISSING}"]
+    if not _git("ls-tree", "--name-only", ref, f"{IMPORT_PACKAGE}/", cwd=root).stdout.strip():
+        return [f"Documented install ref {ref!r} {REF_LACKS_PACKAGE}"]
+    return []
+
+
+def _install_ref_defects(root: Path, refs: Iterable[str]) -> list[str]:
+    """Audit ``refs`` against the clone at ``root``, refusing to guess when blind.
+
+    A shallow clone holds only the commit it checked out, so `git rev-parse` on any
+    other SHA exits non-zero whether that ref is absent from the *project* or merely
+    absent from this *clone*. Reporting "the ref does not exist" there asserts
+    something the checkout cannot know — the failure that made the `v0.2.2` publish
+    red while the SHA it named was sitting in `main` all along. A check that cannot
+    tell fails closed on its own terms instead.
+    """
+    if _is_shallow(root):
+        return [SHALLOW_CHECKOUT]
+    return [defect for ref in sorted(refs) for defect in _ref_defects(root, ref)]
 
 
 def _documented_install_refs() -> set[str]:
@@ -139,20 +191,121 @@ def test_documented_install_refs_actually_ship_the_import_package(
     resolves fine and installs fine, but its tree holds `shared_libs_python`,
     so the README's own examples fail at import time.
     """
-    for ref in sorted(_pinned_install_refs()):
-        resolved = _git("rev-parse", "--verify", f"{ref}^{{commit}}")
-        assert resolved.returncode == 0, (
-            f"Documented install ref {ref!r} does not resolve to a commit in this "
-            f"repository. A documented ref must exist before it is published."
-        )
+    assert _install_ref_defects(ROOT, _pinned_install_refs()) == []
 
-        listing = _git("ls-tree", "--name-only", ref, f"{IMPORT_PACKAGE}/")
-        assert listing.stdout.strip(), (
-            f"Documented install ref {ref!r} does not contain the {IMPORT_PACKAGE}/ "
-            f"package, so `pip install ...@{ref}` followed by "
-            f"`import {IMPORT_PACKAGE}` raises ModuleNotFoundError. "
-            f"Point the docs at a ref whose tree actually ships {IMPORT_PACKAGE}/."
-        )
+
+#: The pre-rename import package, as it sat in the tree before `v0.2.1`.
+STALE_IMPORT_PACKAGE = STALE_REPO_SLUG.replace("-", "_")
+
+#: Git flags that ignore the developer's global config, so a fixture repository is
+#: built identically on a laptop with signing enabled and on a bare CI runner.
+_HERMETIC = (
+    "-c",
+    "user.name=Fixture",
+    "-c",
+    "user.email=fixture@example.invalid",
+    "-c",
+    "commit.gpgsign=false",
+)
+
+
+def _run_git(cwd: Path, *args: str) -> None:
+    """Run a repo-building git command, raising on failure — a fixture must not lie."""
+    subprocess.run(  # noqa: S603
+        ["git", *_HERMETIC, *args],  # noqa: S607
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+
+def _commit(root: Path, message: str) -> str:
+    """Commit everything in ``root`` and return the resulting SHA."""
+    _run_git(root, "add", "-A")
+    _run_git(root, "commit", "-m", message)
+    return _git("rev-parse", "HEAD", cwd=root).stdout.strip()
+
+
+class _History(NamedTuple):
+    """A source repository whose two commits straddle the package rename."""
+
+    source: Path
+    before_rename: str
+    after_rename: str
+
+
+@pytest.fixture
+def history(tmp_path: Path) -> _History:
+    """A real two-commit repo: commit one predates the rename, commit two ships it."""
+    source = tmp_path / "source"
+    (source / STALE_IMPORT_PACKAGE).mkdir(parents=True)
+    (source / STALE_IMPORT_PACKAGE / "__init__.py").write_text("", encoding="utf-8")
+    _run_git(tmp_path, "init", "-b", "main", str(source))
+    before = _commit(source, "the tree before the rename")
+
+    (source / STALE_IMPORT_PACKAGE / "__init__.py").unlink()
+    (source / STALE_IMPORT_PACKAGE).rmdir()
+    (source / IMPORT_PACKAGE).mkdir()
+    (source / IMPORT_PACKAGE / "__init__.py").write_text("", encoding="utf-8")
+
+    return _History(source, before, _commit(source, "rename to the current package"))
+
+
+def _clone(into: Path, source: Path, name: str, *flags: str) -> Path:
+    """Clone ``source`` into ``into/name``. `file://` because `--depth` needs a URL."""
+    _run_git(into, "clone", *flags, f"file://{source}", name)
+    return into / name
+
+
+def test_a_shallow_clone_reports_shallowness_not_a_missing_ref(
+    tmp_path: Path, history: _History
+) -> None:
+    """The `v0.2.2` publish failure, reproduced: the ref exists; the clone cannot see it.
+
+    `publish.yml` checked out at depth 1, so the gate declared the README's pinned
+    SHA absent from a repository that has always contained it. Naming the wrong
+    cause sent a release chasing a docs bug that did not exist.
+    """
+    shallow = _clone(tmp_path, history.source, "shallow", "--depth", "1")
+
+    defects = _install_ref_defects(shallow, {history.before_rename})
+
+    assert defects == [SHALLOW_CHECKOUT]
+    assert REF_MISSING not in "".join(defects), (
+        "a shallow clone must not accuse the docs of pinning a ref that does exist"
+    )
+
+
+def test_a_ref_genuinely_absent_from_a_full_clone_still_fails(
+    tmp_path: Path, history: _History
+) -> None:
+    """The original property survives: full history, real verdict."""
+    full = _clone(tmp_path, history.source, "full")
+    absent = "0" * 40
+
+    assert _install_ref_defects(full, {absent}) == [
+        f"Documented install ref {absent!r} {REF_MISSING}"
+    ]
+
+
+def test_a_ref_whose_tree_predates_the_rename_still_fails(
+    tmp_path: Path, history: _History
+) -> None:
+    """The `v0.2.0` defect: the ref resolves, installs, and then cannot be imported."""
+    full = _clone(tmp_path, history.source, "full")
+    stale = history.before_rename
+
+    assert _install_ref_defects(full, {stale}) == [
+        f"Documented install ref {stale!r} {REF_LACKS_PACKAGE}"
+    ]
+
+
+def test_a_ref_that_ships_the_import_package_is_accepted(tmp_path: Path, history: _History) -> None:
+    """Guard the opposite direction: a correct pin in a full clone must pass."""
+    full = _clone(tmp_path, history.source, "full")
+
+    assert _install_ref_defects(full, {history.after_rename}) == []
 
 
 def test_moving_ref_is_labelled_development_only() -> None:
