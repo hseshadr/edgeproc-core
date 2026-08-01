@@ -41,6 +41,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # Full history + tags. This job re-runs `uv run poe gate`, and two of the
+          # gate's checks read Git rather than the working tree:
+          # `test_documented_install_refs_actually_ship_the_import_package` resolves
+          # every pinned commit SHA the docs tell a reader to install, and
+          # `test_changelog_provenance` compares each released section against that
+          # section at its own tag. On the default shallow clone the first one fails
+          # outright (a historical SHA is simply not there) and the second has nothing
+          # to compare against. ci.yml has carried `fetch-depth: 0` for this reason all
+          # along; inlining the publish job dropped it, and the v0.2.2 tag is what
+          # surfaced that — see run 30705603462.
+          fetch-depth: 0
 
       - name: Setup Python + uv (+ sync)
         uses: hseshadr/ci/.github/actions/setup-python-uv@2a575cd193e2e1fc093ccd26821020538e2547b7 # ci-v2.0.3
