@@ -63,7 +63,10 @@ those patterns on top of this library's protocols.)
 
 This library provides vector partitioning (insert routing + top-k result merging) with flexible partitioning strategies. It ships the partitioning protocol and an in-memory brute-force reference index — **not** an HNSW implementation; the HNSW `m` / `ef_construction` values in `IndexConfig` are pass-through knobs carried to whatever backend implements `VectorIndex`. Core principle: do NOT create one index per tenant—use global or bucketed indices with metadata filtering.
 
-![Architecture Diagram](docs/diagrams/architecture.svg)
+The architecture diagram lives inline in [`README.md`](README.md) as a mermaid block —
+GitHub renders it natively, so there is no `.svg` build artifact to regenerate or let go
+stale. Deep-dive diagrams are inline in
+[`docs/vector-mgmt-architecture.md`](docs/vector-mgmt-architecture.md).
 
 ### Public API
 

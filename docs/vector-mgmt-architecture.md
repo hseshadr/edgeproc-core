@@ -8,14 +8,30 @@ This is a general-purpose strategy that can be applied to any vector search syst
 
 **Core Principle**: Do NOT create "one HNSW per tenant/user." Instead, use global or bucketed indices with metadata filtering and routing.
 
-## Architecture Diagrams
+## The three strategies at a glance
 
-| Diagram | Description |
-|---------|-------------|
-| ![Partitioning Strategies](diagrams/partitioning-strategies.png) | Comparison of Global, Bucketed, and Two-Tier strategies |
-| ![Query Flow](diagrams/query-flow.png) | End-to-end query lifecycle |
-| ![Reindex Pattern](diagrams/reindex-atomic-swap.png) | Background reindex with atomic swap |
-| ![Scale Decision Tree](diagrams/scale-decision-tree.png) | Choosing the right strategy based on scale |
+```mermaid
+flowchart TD
+    Q["A search arrives for tenant t1"] --> H{"How many tenants?"}
+    H -->|"under 50K"| G["Global<br/>one index for all,<br/>filter to t1 after"]
+    H -->|"50K to 5M"| B["Bucketed<br/>hash t1 into 1 of 256,<br/>search just that one"]
+    H -->|"over 5M"| T["Two-tier<br/>hot: last 30 days<br/>cold: the rest"]
+    G --> R["Top-k — t1's rows,<br/>nobody else's"]
+    B --> R
+    T --> R
+```
+
+## What one query actually does
+
+```mermaid
+flowchart TD
+    A["A query plus the owner's key<br/>'acme holdings' from tenant t1"]
+    B["Embed the text<br/>it becomes 1,536 numbers"]
+    C["The strategy names the partitions to search<br/>one index, or three buckets, or hot plus cold"]
+    D["Search each named partition<br/>keep only rows where tenant_id = t1"]
+    E["Merge, drop duplicates, return the top k<br/>what to aim for in the backend you plug in:<br/>p95 under 100 ms, recall@20 above 95%"]
+    A --> B --> C --> D --> E
+```
 
 ---
 
@@ -356,6 +372,18 @@ Rebuild when monitoring shows:
 
 ## Background Reindex + Atomic Swap Pattern
 
+Rebuilding an index without ever taking search offline:
+
+```mermaid
+flowchart TD
+    A["Index A is live and answering every query"]
+    B["Build index B from a snapshot of A<br/>every new write now goes to both A and B"]
+    C["B replays the events since the snapshot<br/>until it is zero behind"]
+    D["Check B before trusting it: same row count,<br/>same answers on sample queries,<br/>no latency or recall regression"]
+    E["Flip the pointer to B in one transaction<br/>keep A for 24 h in case you need to roll back"]
+    A --> B --> C --> D --> E
+```
+
 ### Gold Standard: Shadow Index + Dual-Write + Alias Swap
 
 **Process:**
@@ -517,6 +545,16 @@ WHERE tenant_id = $1;  -- Then filter (inefficient)
 ---
 
 ## Scaling Guidelines
+
+Pick a strategy from one number — how many tenants you have:
+
+```mermaid
+flowchart TD
+    S{"How many tenants?"}
+    S -->|"under 50K"| G["Global<br/>one index + a filter,<br/>revisit past 10M vectors"]
+    S -->|"50K to 5M"| B["Bucketed<br/>256 buckets, go to 1024<br/>once a bucket passes 1M"]
+    S -->|"over 5M"| T["Two-tier if recent data<br/>is what gets queried,<br/>else bucketed 1024+"]
+```
 
 ### Tenant Count → Strategy Mapping
 
