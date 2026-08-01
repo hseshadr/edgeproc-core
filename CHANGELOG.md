@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-08-01
+
+A metadata-only release whose entire job is to make PyPI show the right project.
+`[project.urls]` is per-release metadata: PyPI renders whatever the *latest* release
+declared and offers no way to edit it afterwards, so the identity fix already merged
+under `[Unreleased]` could not reach
+[the listing](https://pypi.org/project/edgeproc-core/) until a version shipped. Until
+this release every sidebar link on that page pointed at `hseshadr/shared-libs-python`
+and 301'd to the real repository. No runtime code changed; `edgeproc_core` at 0.2.2 is
+byte-for-byte the library 0.2.1 was.
+
 ### Changed
 - **Public surfaces now name the canonical repository, `hseshadr/edgeproc-core`.**
   At `0.2.1` only the distribution and import names moved; the GitHub repository
@@ -285,7 +296,8 @@ shared-libs-python` stack going public together; live demo at https://edge-reco.
 - Full type hints and mypy strict compliance
 - Protocol-based design for extensibility
 
-[Unreleased]: https://github.com/hseshadr/edgeproc-core/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/hseshadr/edgeproc-core/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/hseshadr/edgeproc-core/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/hseshadr/edgeproc-core/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/hseshadr/edgeproc-core/compare/v0.1.4...v0.2.0
 [0.1.4]: https://github.com/hseshadr/edgeproc-core/compare/v0.1.3...v0.1.4
