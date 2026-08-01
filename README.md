@@ -29,6 +29,18 @@ edge-reco        hybrid search + recommendations, running in the browser
        └─ edgeproc-core   ← you are here: the vector-partitioning protocol
 ```
 
+Everything the library does, end to end:
+
+```mermaid
+flowchart TD
+    V["Your vectors — each tagged with an owner<br/>tenant_id, user_id, org_id, or a key you invent"]
+    M["IndexManager<br/>routes every insert, merges every search"]
+    S["Partitioning strategy — Global, Bucketed, or Hot-and-cold<br/>swapping one for another is a one-line change"]
+    B[("Your search backend: FAISS, pgvector, hnswlib …<br/>this library ships none of them — it only decides<br/>which one each vector belongs in")]
+    R["Top-k for that owner and nobody else<br/>10,000 vectors across 256 buckets:<br/>routing p50 5.8 ms, search p50 19.0 ms"]
+    V --> M --> S --> B --> R
+```
+
 **Status:** v0.2.1, alpha. Small and focused by design — the foundation, not
 the headline. The hosted CI run and the full local gate pass at **98.41%
 coverage measured with branches enabled**, with strict mypy, lint, and
