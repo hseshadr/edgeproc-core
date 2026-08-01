@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] — 2026-08-01
+
+The first release cut on a repaired publish path. No runtime code changed;
+`edgeproc_core` at 0.2.3 is byte-for-byte the library 0.2.2 was.
+
+`v0.2.2` was tagged and its release run went red before it built anything. The
+release job checked out with Actions' default depth-1 clone, so the gate ran
+history-backed checks against a repository holding exactly one commit: it declared
+the commit SHA the docs pin "does not resolve to a commit in this repository", and
+skipped changelog provenance for want of tags. That SHA was never missing — the
+checkout simply could not see it. 0.2.2 did reach PyPI in the end, but only after
+its tag was deleted and re-cut against the fix, and a tag that gets repointed is
+not a pin. 0.2.3 ships from a tag that was right the first time.
+
+### Fixed
+- **The release job checks out full history (`fetch-depth: 0`).** `ci.yml` had
+  carried that input since it was written; inlining the publish job — needed so
+  PyPI's Trusted Publisher sees this repository's own `job_workflow_ref` — copied
+  the steps but not the input. Same gate, two different clones, two different
+  answers, and the disagreement could only ever surface at a tag.
+- **A guard that cannot tell now says so instead of guessing.** On a shallow clone
+  `git rev-parse` fails identically for a ref that does not exist and one that was
+  never fetched, so the install-ref check no longer reports the first when it means
+  the second. It fails closed, names shallowness as the cause, and names the fix.
+  A ref genuinely absent from a full clone still fails, exactly as before.
+
+### Added
+- **Two regression guards, driven against real clones.** The shallow-versus-missing
+  distinction is tested by building a two-commit repository whose commits straddle
+  the package rename and cloning it once at `--depth 1` and once in full — nothing
+  about Git is mocked. A second guard asserts that every workflow job running
+  `poe gate` checks out with `fetch-depth: 0`, so the input cannot be dropped again
+  without CI going red; it is driven by four synthetic workflows that each lose full
+  history a different way, including one where `fetch-depth: 0` appears only inside
+  a comment.
+
 ## [0.2.2] — 2026-08-01
 
 A metadata-only release whose entire job is to make PyPI show the right project.
@@ -296,7 +332,8 @@ shared-libs-python` stack going public together; live demo at https://edge-reco.
 - Full type hints and mypy strict compliance
 - Protocol-based design for extensibility
 
-[Unreleased]: https://github.com/hseshadr/edgeproc-core/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/hseshadr/edgeproc-core/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/hseshadr/edgeproc-core/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/hseshadr/edgeproc-core/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/hseshadr/edgeproc-core/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/hseshadr/edgeproc-core/compare/v0.1.4...v0.2.0
