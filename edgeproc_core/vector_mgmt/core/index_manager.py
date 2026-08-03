@@ -39,11 +39,47 @@ class IndexManager:
         embeddings: list[VectorEmbedding],
         partition_key: str | None = None,
     ) -> None:
-        """Route ``embeddings`` to partitions and insert into each backing index."""
-        partitions = self.partition_strategy.get_partitions(embeddings, partition_key)
+        """Route ``embeddings`` to partitions and insert into each backing index.
+
+        Rows carrying no key of their own are stamped with ``partition_key``
+        first — see ``_stamp_partition_key`` for why that is not optional.
+        """
+        stamped = self._stamp_partition_key(embeddings, partition_key)
+        partitions = self.partition_strategy.get_partitions(stamped, partition_key)
         for partition_name, partition_embeddings in partitions.items():
             index = await self.partition_strategy.get_index(partition_name)
             await index.insert(partition_embeddings)
+
+    def _stamp_partition_key(
+        self, embeddings: list[VectorEmbedding], partition_key: str | None
+    ) -> list[VectorEmbedding]:
+        """Write ``partition_key`` into every row that carries no key of its own.
+
+        Routing may fall back to this *argument*, but ``search``, ``delete`` and
+        ``get_stats`` all filter on row *metadata*. Without this step a row
+        inserted under an argument-only key landed in the right physical index
+        and was still invisible through that key — uncounted by its stats and
+        undeletable by its scoped delete, reachable only by an unscoped
+        administrative delete. Nothing raised; the row simply vanished.
+
+        Stamping cannot widen a scope: the caller declared these rows belong to
+        ``partition_key``, and they already route into that partition. All this
+        does is make the metadata agree with the routing that already happened.
+        """
+        if partition_key is None:
+            return embeddings
+        return [self._with_partition_key(emb, partition_key) for emb in embeddings]
+
+    def _with_partition_key(self, emb: VectorEmbedding, partition_key: str) -> VectorEmbedding:
+        """Return ``emb`` untouched, or a *copy* carrying ``partition_key`` in metadata.
+
+        A row that supplied its own key keeps it — routing follows the row, so
+        the metadata must too. The copy is what keeps the caller's object clean.
+        """
+        if emb.get_partition_key(self.partition_key_name) is not None:
+            return emb
+        metadata = {**emb.metadata, self.partition_key_name: partition_key}
+        return emb.model_copy(update={"metadata": metadata})
 
     async def search(
         self,

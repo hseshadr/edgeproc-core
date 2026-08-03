@@ -32,6 +32,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [Implementing your own backend](README.md#implementing-your-own-backend).
 
 ### Fixed
+- **`IndexManager.insert` now stamps the `partition_key` argument into any row that
+  carries no key of its own.** Routing fell back to that argument, but `search`,
+  `delete` and `get_stats` all filter on row *metadata* — so a row inserted as
+  `insert([row], partition_key="acme")` without a `tenant_id` landed in acme's index
+  and was still invisible to acme's search, uncounted by acme's stats, and
+  **undeletable by acme's scoped delete**. Only an unscoped administrative delete
+  could reach it. Nothing raised; the row simply vanished. Any consumer keyed on
+  something other than `tenant_id` (say `org_id`) hit this hardest, because
+  `VectorEmbedding.get_partition_key` falls back to the deprecated `tenant_id`
+  *field* only when the key is literally named `tenant_id`.
+
+  The stamp lands on a copy, so your embedding objects come back unmutated, and a
+  row that supplies its own key keeps it — routing follows the row, so the metadata
+  must too. Stamping cannot widen a scope: the caller already declared those rows
+  belong to `partition_key`, and they already routed into its partition. This only
+  makes the metadata agree with the routing that had already happened. Behaviour is
+  unchanged for every row that already carried its key and for every `insert` call
+  that passes no `partition_key`.
 - `MockVectorIndex.search` in `tests/conftest.py` applied no filter at all: its
   `continue` skipped to the next *filter key* instead of the next row, so every row
   came back whatever was asked for. Found by pointing the new conformance suite at
