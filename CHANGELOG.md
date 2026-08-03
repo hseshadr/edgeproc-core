@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `edgeproc_core.vector_mgmt.conformance.assert_vector_index_conformance` — a
+  conformance suite a third-party backend author runs against their own
+  `VectorIndex`. 0.3.0 told implementers that `delete()` and `get_stats()` must
+  accept **and apply** `filters`, and gave them no way to check; this is that check.
+  Point it at your index factory and it raises `AssertionError` naming every
+  property you break:
+
+  ```python
+  from edgeproc_core.vector_mgmt.conformance import assert_vector_index_conformance
+
+  async def test_my_backend_is_conformant():
+      await assert_vector_index_conformance(my_index_factory)
+  ```
+
+  Pass `partition_key_name="org_id"` if you do not partition on `tenant_id`. It
+  seeds two partitions into one physical index, gives every row the same vector so
+  distance ranking cannot be what separates them, and runs seven checks — the
+  load-bearing two being that a scoped `delete()` leaves a neighbouring partition's
+  rows intact and a scoped `get_stats()` counts only its own. An accept-and-ignore
+  backend fails exactly those two. It does not grade recall, latency, `rebuild()`,
+  or tombstone attribution. See
+  [Implementing your own backend](README.md#implementing-your-own-backend).
+
+### Fixed
+- `MockVectorIndex.search` in `tests/conftest.py` applied no filter at all: its
+  `continue` skipped to the next *filter key* instead of the next row, so every row
+  came back whatever was asked for. Found by pointing the new conformance suite at
+  it, which is the point of shipping one. The published `InMemoryVectorIndex` was
+  never affected, and `tests/test_tenant_isolation.py` — which guards the README's
+  isolation claim — already ran against that real backend rather than this double.
+  No existing test depended on the broken behaviour.
+
 ## [0.3.0] — 2026-08-03
 
 A minor bump, not a patch, because it changes the `VectorIndex` protocol. The
