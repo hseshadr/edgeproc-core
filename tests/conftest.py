@@ -59,14 +59,9 @@ class MockVectorIndex:
         for entity_id, emb in self._embeddings.items():
             if entity_id in self._deleted:
                 continue
-            # Apply filters if provided
-            if filters:
-                for key, value in filters.items():
-                    if key == "tenant_id" and emb.tenant_id != value:
-                        if emb.get_partition_key("tenant_id") != value:
-                            continue
-                    elif key in emb.metadata and emb.metadata[key] != value:
-                        continue
+            # Apply filters if provided, by the same rule ``delete`` and ``get_stats`` use.
+            if filters and not _mock_matches(emb, filters):
+                continue
             # Fake distance calculation (just use index for simplicity)
             distance = float(len(results)) * 0.1
             results.append((entity_id, distance))

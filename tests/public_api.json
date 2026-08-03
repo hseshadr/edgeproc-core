@@ -212,6 +212,9 @@
     "VectorIndex.rebuild",
     "VectorIndex.search"
   ],
+  "edgeproc_core.vector_mgmt.conformance": [
+    "assert_vector_index_conformance"
+  ],
   "edgeproc_core.vector_mgmt.core": [
     "IndexConfig",
     "IndexConfig.dimension",

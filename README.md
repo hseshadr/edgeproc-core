@@ -42,11 +42,11 @@ flowchart TD
 ```
 
 **Status:** v0.3.0, alpha. Small and focused by design — the foundation, not
-the headline. The hosted CI run and the full local gate pass at **98.61%
+the headline. The hosted CI run and the full local gate pass at **98.80%
 coverage measured with branches enabled**, with strict mypy, lint, and
 formatting. The gate runs `--cov-branch` and enforces a ≥90% branch coverage
 floor, so that is a measurement and not an assertion. Split into its two parts:
-98.66% of statements and 98.44% of branches are covered. A gate step re-derives
+98.84% of statements and 98.63% of branches are covered. A gate step re-derives
 all three figures from `coverage.xml` on every run, so this paragraph cannot
 quietly drift away from what the suite actually measures.
 
@@ -113,7 +113,59 @@ bash examples/run_loop.sh
 `InMemoryVectorIndex` is a reference implementation for tests and examples; in
 production you implement `VectorIndex` against your own backend. See
 [`edge-proc`'s `LocalVecIndex`](https://github.com/hseshadr/edge-proc) for a
-FAISS-backed example.
+FAISS-backed example, and [Implementing your own backend](#implementing-your-own-backend)
+for the conformance suite that proves yours is correct.
+
+## Implementing your own backend
+
+If you implement `VectorIndex` yourself, **run the conformance suite against it.**
+One command tells you whether your backend is safe to put in front of more than one
+tenant:
+
+```python
+# tests/test_my_backend_conformance.py
+from edgeproc_core.vector_mgmt.conformance import assert_vector_index_conformance
+
+from my_project import MyVectorIndex
+
+
+async def my_factory(name, config=None):
+    return MyVectorIndex(name, config)
+
+
+async def test_my_backend_is_conformant():
+    await assert_vector_index_conformance(my_factory)
+```
+
+It passes silently and raises `AssertionError` naming every property you break.
+Not using pytest? It is a plain coroutine — `asyncio.run(assert_vector_index_conformance(my_factory))`
+exits non-zero on failure.
+
+If your partition key is not `tenant_id`, say so:
+`assert_vector_index_conformance(my_factory, partition_key_name="org_id")`.
+
+**Why you need this.** `delete()` and `get_stats()` take a `filters` argument, and
+`IndexManager` passes the partition scope through it. The argument has a default, so
+a backend that accepts `filters` and never applies it still type-checks, still passes
+its own tests — and silently deletes the *neighbouring* tenant's rows on every scoped
+delete. Bucket collisions are expected by design, so the index a key routes to
+routinely holds other keys' rows; nothing in a compiler or a linter can see that
+failure. The suite seeds two partitions into one physical index, gives every row the
+same vector so ranking cannot be what separates them, and checks that the filter is
+actually applied:
+
+| Check | What it catches |
+| --- | --- |
+| `rows_are_readable_back` | Nothing was stored, so every result below would be vacuous |
+| `search_applies_filters` | A scoped read returns someone else's rows |
+| `scoped_delete_spares_other_partitions` | **Cross-partition data destruction** |
+| `scoped_delete_removes_its_own_rows` | A backend "passing" by never deleting |
+| `unscoped_delete_is_administrative` | An unscoped delete silently doing nothing |
+| `unscoped_stats_report_the_physical_total` | Stats that never saw the rows |
+| `scoped_stats_count_only_their_partition` | A row count leaked across partitions |
+
+What it does **not** grade: recall, latency, `rebuild()`, and how you attribute
+tombstones to a scope. Those are backend-specific and untested here.
 
 ## Installation
 
@@ -189,6 +241,7 @@ edgeproc_core/
     partitioning/
       strategies.py     # GlobalPartitionStrategy, BucketedPartitionStrategy, TwoTierPartitionStrategy
     testing.py          # InMemoryVectorIndex — reference impl for tests + examples
+    conformance.py      # assert_vector_index_conformance — grade your own backend
   errors/               # canonical error codes (see "Canonical errors" below)
     types.py            # Category, CatalogEntry, ProblemDetails (RFC 9457)
     registry.py         # Registry + define_errors — classify / describe / serialize
