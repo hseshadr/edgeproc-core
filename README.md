@@ -41,7 +41,7 @@ flowchart TD
     V --> M --> S --> B --> R
 ```
 
-**Status:** v0.2.3, alpha. Small and focused by design — the foundation, not
+**Status:** v0.3.0, alpha. Small and focused by design — the foundation, not
 the headline. The hosted CI run and the full local gate pass at **98.61%
 coverage measured with branches enabled**, with strict mypy, lint, and
 formatting. The gate runs `--cov-branch` and enforces a ≥90% branch coverage

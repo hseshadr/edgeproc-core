@@ -7,32 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
+## [0.3.0] — 2026-08-03
 
-- **`IndexManager.delete` and `IndexManager.get_stats` now honour `partition_key`.**
-  Both used it only to pick which index to visit and then passed no filter, while
-  `search` composed and applied one. Because bucket collisions are expected by
-  design, the index a key routes to routinely holds other keys' rows — so a
-  `tenant_a`-scoped delete destroyed `tenant_b`'s rows, and `tenant_a`-scoped stats
-  counted `tenant_b`'s vectors. Reproduced against `num_buckets=1`: a scoped delete
-  of two ids left the neighbouring tenant with one row of three, and a scoped
-  `vector_count` read 3 where 2 had been inserted. All three calls now compose the
-  same filter, so a caller cannot destroy or count a row a scoped `search` would
-  not show it. A scoped delete that matches nothing also leaves no tombstone, so
-  one partition can no longer block an id another has yet to insert.
+A minor bump, not a patch, because it changes the `VectorIndex` protocol. The
+README's partitioning promise is that a scoped query returns "top-k for that owner
+and nobody else"; `search` kept it and `delete`/`get_stats` did not. Both took a
+`partition_key`, used it only to choose which index to visit, and applied no
+filter. Bucket collisions are expected by design, so the index a key routes to
+routinely holds other keys' rows — which made a scoped delete a cross-tenant
+delete. Closing that meant adding `filters` to two protocol methods, so callers
+of `IndexManager` need no change and implementers of `VectorIndex` do.
 
 ### Changed
-
-- **Breaking for backend implementers:** `VectorIndex.delete` and
-  `VectorIndex.get_stats` take a `filters: Metadata | None = None` argument, and
-  `IndexManager` passes the partition filter through it. Implementations of the
-  protocol (FAISS, pgvector, hnswlib, …) must accept and honour it; one that
-  ignores `filters` silently reintroduces the bug above. No exported symbol was
-  removed, and callers of `IndexManager` need no change.
+- **BREAKING for `VectorIndex` implementers:** `VectorIndex.delete()` and
+  `VectorIndex.get_stats()` now take a `filters: Metadata | None = None` argument,
+  and `IndexManager` passes the partition filter through it. Every implementation
+  of the protocol (FAISS, pgvector, hnswlib, an in-house adapter) must accept
+  **and apply** `filters`. A backend that accepts it and ignores it still
+  type-checks, still passes its own tests, and silently reintroduces cross-tenant
+  data destruction — a scoped `delete()` erases the neighbouring partition's rows
+  again, and a scoped `get_stats()` counts them again. The default makes the
+  signature change source-compatible, which is exactly why the failure is quiet:
+  audit each backend rather than trusting the build. No exported symbol was added,
+  renamed, or removed — `tests/public_api.json` is untouched — so nothing about
+  this break is visible to an import-level check.
 - `rebuild_if_needed` stays deliberately unscoped and now says so. Compaction is a
   property of a physical index — a slice of a shared index cannot be rebuilt on its
   own — so its `partition_key` selects which index to maintain and nothing more.
   Pinned by a test rather than left as an unstated asymmetry.
+
+### Fixed
+- **`IndexManager.delete()` and `IndexManager.get_stats()` now honour
+  `partition_key`.** For callers this is purely a bug fix: a scoped call finally
+  does what its argument always said, with no code change on their side. A
+  `tenant_a`-scoped delete used to destroy `tenant_b`'s rows, and `tenant_a`-scoped
+  stats used to count `tenant_b`'s vectors. Reproduced against `num_buckets=1`: a
+  scoped delete of two ids left the neighbouring tenant with one row of three, and
+  a scoped `vector_count` read 3 where 2 had been inserted. All three calls now
+  compose the same filter, so a caller cannot destroy or count a row a scoped
+  `search` would not show it. A scoped delete that matches nothing also leaves no
+  tombstone, so one partition can no longer block an id another has yet to insert.
 
 ## [0.2.3] — 2026-08-01
 
@@ -359,7 +373,8 @@ shared-libs-python` stack going public together; live demo at https://edge-reco.
 - Full type hints and mypy strict compliance
 - Protocol-based design for extensibility
 
-[Unreleased]: https://github.com/hseshadr/edgeproc-core/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/hseshadr/edgeproc-core/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/hseshadr/edgeproc-core/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/hseshadr/edgeproc-core/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/hseshadr/edgeproc-core/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/hseshadr/edgeproc-core/compare/v0.2.0...v0.2.1
