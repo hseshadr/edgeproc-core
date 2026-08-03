@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "edgeproc-core"
-version = "0.3.0"
+version = "0.4.0"
 description = "Vector partitioning and generic partition-key management for Python."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -152,5 +152,10 @@ test = "pytest"
 # Runs after `test` so it reads the coverage.xml that run just wrote: the README's
 # published figures must match the measurement, not a stale memory of it.
 coverage-claim = "python scripts/check_coverage_claim.py"
+# Builds the wheel this release would publish, unpacks it, and runs every import
+# the docs tell a reader to run against that tree alone. A bare `import edgeproc_core`
+# is shape; this is the property. `conformance.py` shipped 14 minutes after the 0.3.0
+# tag and the README documented it anyway — nothing in the gate could see that.
+docs-imports = "python scripts/check_docs_imports.py"
 # The canonical quality gate (house standard §3). Mirrors CI exactly, both directions.
-gate = ["lint", "fmt-check", "typecheck", "complexity", "test", "coverage-claim"]
+gate = ["lint", "fmt-check", "typecheck", "complexity", "test", "coverage-claim", "docs-imports"]
