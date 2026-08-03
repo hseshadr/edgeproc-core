@@ -78,19 +78,31 @@ class IndexManager:
         entity_ids: list[str],
         partition_key: str | None = None,
     ) -> None:
-        """Delete ``entity_ids`` from every partition the strategy associates with the key."""
+        """Delete ``entity_ids``, scoped to ``partition_key`` exactly as ``search`` is.
+
+        Selecting the partition is not scoping: bucket collisions are expected by
+        design, so the index a key routes to routinely holds other keys' rows too.
+        The same filter the read path composes therefore travels with the delete —
+        a caller that cannot *see* a row through ``search`` cannot destroy it here.
+        """
+        delete_filters = self._compose_filters(None, partition_key)
         partitions = self.partition_strategy.get_search_partitions(partition_key)
         for partition_name in partitions:
             index = await self.partition_strategy.get_index(partition_name)
-            await index.delete(entity_ids)
+            await index.delete(entity_ids, filters=delete_filters)
 
     async def get_stats(self, partition_key: str | None = None) -> list[IndexStats]:
-        """Return statistics for every partition the strategy associates with the key."""
+        """Return statistics for ``partition_key``'s rows in each partition it routes to.
+
+        Scoped like ``search`` and ``delete``: a colliding neighbour's rows are
+        another partition's business and are not counted into this one's totals.
+        """
+        stats_filters = self._compose_filters(None, partition_key)
         partitions = self.partition_strategy.get_search_partitions(partition_key)
         stats: list[IndexStats] = []
         for partition_name in partitions:
             index = await self.partition_strategy.get_index(partition_name)
-            stats.append(await index.get_stats())
+            stats.append(await index.get_stats(filters=stats_filters))
         return stats
 
     async def rebuild_if_needed(
@@ -99,6 +111,14 @@ class IndexManager:
         force: bool = False,
     ) -> bool:
         """Trigger a rebuild on the first partition that meets the rebuild criteria.
+
+        Deliberately *not* scoped, unlike ``search``, ``delete`` and ``get_stats``.
+        Compaction is a property of a physical index — a slice of a shared index
+        cannot be rebuilt on its own — so ``partition_key`` selects which index to
+        maintain and nothing more, and the criteria read that index's own totals.
+        The visible consequence: a rebuild asked for under one key can be triggered
+        by tombstones another key left behind. Reporting is scoped, maintenance is
+        physical; ``tests/test_tenant_isolation.py`` pins that asymmetry.
 
         Iterates partition names (not ``stats.index_name``): a strategy may hand
         the factory a different index name than the partition name it routes by.

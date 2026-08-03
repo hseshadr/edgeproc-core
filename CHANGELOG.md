@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`IndexManager.delete` and `IndexManager.get_stats` now honour `partition_key`.**
+  Both used it only to pick which index to visit and then passed no filter, while
+  `search` composed and applied one. Because bucket collisions are expected by
+  design, the index a key routes to routinely holds other keys' rows — so a
+  `tenant_a`-scoped delete destroyed `tenant_b`'s rows, and `tenant_a`-scoped stats
+  counted `tenant_b`'s vectors. Reproduced against `num_buckets=1`: a scoped delete
+  of two ids left the neighbouring tenant with one row of three, and a scoped
+  `vector_count` read 3 where 2 had been inserted. All three calls now compose the
+  same filter, so a caller cannot destroy or count a row a scoped `search` would
+  not show it. A scoped delete that matches nothing also leaves no tombstone, so
+  one partition can no longer block an id another has yet to insert.
+
+### Changed
+
+- **Breaking for backend implementers:** `VectorIndex.delete` and
+  `VectorIndex.get_stats` take a `filters: Metadata | None = None` argument, and
+  `IndexManager` passes the partition filter through it. Implementations of the
+  protocol (FAISS, pgvector, hnswlib, …) must accept and honour it; one that
+  ignores `filters` silently reintroduces the bug above. No exported symbol was
+  removed, and callers of `IndexManager` need no change.
+- `rebuild_if_needed` stays deliberately unscoped and now says so. Compaction is a
+  property of a physical index — a slice of a shared index cannot be rebuilt on its
+  own — so its `partition_key` selects which index to maintain and nothing more.
+  Pinned by a test rather than left as an unstated asymmetry.
+
 ## [0.2.3] — 2026-08-01
 
 The first release cut on a repaired publish path. No runtime code changed;

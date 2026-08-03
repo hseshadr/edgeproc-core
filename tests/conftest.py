@@ -1,16 +1,27 @@
 """Pytest fixtures and test utilities."""
 
 from collections.abc import Awaitable, Callable
-from typing import Any
 
 import pytest
 
 from edgeproc_core.vector_mgmt.core.types import (
     IndexConfig,
     IndexStats,
+    Metadata,
     VectorEmbedding,
     VectorIndex,
 )
+
+
+def _mock_matches(emb: VectorEmbedding | None, filters: Metadata) -> bool:
+    """True when ``emb`` exists and every filter key matches it."""
+    if emb is None:
+        return False
+    return all(
+        (emb.get_partition_key("tenant_id") if key == "tenant_id" else emb.metadata.get(key))
+        == value
+        for key, value in filters.items()
+    )
 
 
 class MockVectorIndex:
@@ -40,7 +51,7 @@ class MockVectorIndex:
         self,
         query_vector: list[float],
         k: int,
-        filters: dict[str, Any] | None = None,
+        filters: Metadata | None = None,
         ef_search: int | None = None,
     ) -> list[tuple[str, float]]:
         """Mock search - returns all embeddings with fake distances."""
@@ -63,17 +74,22 @@ class MockVectorIndex:
         results.sort(key=lambda x: x[1])
         return results[:k]
 
-    async def delete(self, entity_ids: list[str]) -> None:
-        """Delete embeddings by entity_id."""
+    async def delete(self, entity_ids: list[str], filters: Metadata | None = None) -> None:
+        """Delete embeddings by entity_id, restricted to rows matching ``filters``."""
         for entity_id in entity_ids:
+            if filters and not _mock_matches(self._embeddings.get(entity_id), filters):
+                continue
             self._deleted.add(entity_id)
             if entity_id in self._embeddings:
                 del self._embeddings[entity_id]
         self._update_stats()
 
-    async def get_stats(self) -> IndexStats:
-        """Get index statistics."""
-        return self._stats
+    async def get_stats(self, filters: Metadata | None = None) -> IndexStats:
+        """Get index statistics, counting only rows matching ``filters``."""
+        if not filters:
+            return self._stats
+        live = sum(1 for emb in self._embeddings.values() if _mock_matches(emb, filters))
+        return self._stats.model_copy(update={"vector_count": live, "index_size_mb": live * 0.001})
 
     async def rebuild(self, config: IndexConfig | None = None) -> None:
         """Mock rebuild - clears deleted items."""
