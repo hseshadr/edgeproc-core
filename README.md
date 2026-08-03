@@ -42,11 +42,11 @@ flowchart TD
 ```
 
 **Status:** v0.3.0, alpha. Small and focused by design — the foundation, not
-the headline. The hosted CI run and the full local gate pass at **98.80%
+the headline. The hosted CI run and the full local gate pass at **98.93%
 coverage measured with branches enabled**, with strict mypy, lint, and
 formatting. The gate runs `--cov-branch` and enforces a ≥90% branch coverage
 floor, so that is a measurement and not an assertion. Split into its two parts:
-98.84% of statements and 98.63% of branches are covered. A gate step re-derives
+98.84% of statements and 99.32% of branches are covered. A gate step re-derives
 all three figures from `coverage.xml` on every run, so this paragraph cannot
 quietly drift away from what the suite actually measures.
 
