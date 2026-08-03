@@ -20,6 +20,7 @@ from edgeproc_core.vector_mgmt.partitioning.strategies import (
     PartitionStrategy,
     TwoTierPartitionStrategy,
 )
+from edgeproc_core.vector_mgmt.testing import in_memory_factory
 from tests.conftest import MockVectorIndex
 
 
@@ -491,3 +492,59 @@ class TestTwoTierPartitionStrategy:
         partitions = strategy.get_partitions(embeddings)
         assert partitions["hot"][0].entity_id == "e1"
         assert partitions["cold"][0].entity_id == "e2"
+
+
+class TestConfigReachesTheFactory:
+    """A strategy's ``config`` must reach the index it builds.
+
+    Nothing else in the suite reads the config back off a constructed index, so
+    dropping ``config=`` from a factory call is invisible: the index quietly
+    builds at ``IndexConfig()``'s 1536-dimension default and a 7-dimension
+    deployment is silently wrong. These pin the pass-through for all three
+    strategies, not just the one where the hole was found.
+    """
+
+    @pytest.mark.parametrize(
+        ("build_strategy", "partition_name"),
+        [
+            (
+                lambda config: GlobalPartitionStrategy(
+                    index_factory=in_memory_factory, index_name="global", config=config
+                ),
+                "global",
+            ),
+            (
+                lambda config: BucketedPartitionStrategy(
+                    index_factory=in_memory_factory, num_buckets=4, config=config
+                ),
+                "bucket_0",
+            ),
+            (
+                lambda config: TwoTierPartitionStrategy(
+                    index_factory=in_memory_factory, config=config
+                ),
+                "hot",
+            ),
+        ],
+        ids=["global", "bucketed", "two_tier"],
+    )
+    @pytest.mark.asyncio
+    async def test_get_index_hands_the_configured_config_to_the_factory(
+        self, build_strategy, partition_name: str
+    ) -> None:
+        """The index is constructed with the caller's config, not a default one."""
+        config = IndexConfig(dimension=7, ef_search=13, distance_metric="l2")
+
+        index = await build_strategy(config).get_index(partition_name)
+
+        assert index.config == config
+        assert index.config.dimension == 7, "a dropped config= silently builds at 1536"
+        assert index.config.ef_search == 13
+        assert index.config.distance_metric == "l2"
+
+    @pytest.mark.asyncio
+    async def test_default_config_is_not_the_configured_one(self) -> None:
+        """Non-vacuity: the assertions above would pass on any config if 7 were the default."""
+        assert IndexConfig().dimension == 1536
+        assert IndexConfig().ef_search == 100
+        assert IndexConfig().distance_metric == "cosine"
