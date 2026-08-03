@@ -27,7 +27,7 @@ flowchart TD
 flowchart TD
     A["A query plus the owner's key<br/>'acme holdings' from tenant t1"]
     B["Embed the text<br/>it becomes 1,536 numbers"]
-    C["The strategy names the partitions to search<br/>one index, or three buckets, or hot plus cold"]
+    C["The strategy names the partitions to search<br/>the one global index, or exactly one bucket, or hot plus cold"]
     D["Search each named partition<br/>keep only rows where tenant_id = t1"]
     E["Merge, drop duplicates, return the top k<br/>what to aim for in the backend you plug in:<br/>p95 under 100 ms, recall@20 above 95%"]
     A --> B --> C --> D --> E
@@ -200,6 +200,11 @@ CREATE TABLE embeddings_cold (
 ---
 
 ### 4. Hierarchical Summaries (Long-Term Memory)
+
+> **This library ships no implementation of this pattern.** `edgeproc_core`
+> exports exactly three strategies — `GlobalPartitionStrategy`,
+> `BucketedPartitionStrategy` and `TwoTierPartitionStrategy`. What follows is a
+> design sketch for a system you would build on top, not an API you can import.
 
 **Strategy:**
 - Don't embed every raw entity for long-term recall

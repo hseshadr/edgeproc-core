@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-08-03
+
+`conformance.py` merged 14 minutes after the `v0.3.0` tag was cut, so the published
+0.3.0 wheel and sdist do not contain it while `README.md` tells implementers to
+`from edgeproc_core.vector_mgmt.conformance import ...`. A clean-venv
+`pip install edgeproc-core==0.3.0` followed by that import raises
+`ModuleNotFoundError`. PyPI files are immutable, so 0.3.0 cannot be repaired —
+this release is the first one that actually ships the module its docs describe.
+
+It also carries a data-integrity fix (`insert` never stamped the routing key into
+metadata) and the first correctness guards `IndexManager.search` has ever had.
+
 ### Added
 - `edgeproc_core.vector_mgmt.conformance.assert_vector_index_conformance` — a
   conformance suite a third-party backend author runs against their own
@@ -424,7 +436,8 @@ shared-libs-python` stack going public together; live demo at https://edge-reco.
 - Full type hints and mypy strict compliance
 - Protocol-based design for extensibility
 
-[Unreleased]: https://github.com/hseshadr/edgeproc-core/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/hseshadr/edgeproc-core/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/hseshadr/edgeproc-core/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/hseshadr/edgeproc-core/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/hseshadr/edgeproc-core/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/hseshadr/edgeproc-core/compare/v0.2.1...v0.2.2

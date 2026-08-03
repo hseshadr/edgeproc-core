@@ -354,7 +354,21 @@ def test_docs_do_not_advertise_a_release_artifact_that_does_not_exist() -> None:
 
 
 def test_security_policy_supports_the_current_release_line() -> None:
-    assert "| 0.2.x" in _read("SECURITY.md")
+    """SECURITY.md must name the *current* minor line — derived, not a frozen literal.
+
+    This asserted the literal `| 0.2.x` while the package shipped `0.3.0`. It
+    pinned a spelling instead of the contract, so it went on passing as the
+    policy went stale: readers were told the supported line was two minors
+    behind the only version on PyPI. Deriving the expected line from
+    `pyproject.toml` means the two files can only ever agree.
+    """
+    version = str(tomllib.loads(_read("pyproject.toml"))["project"]["version"])
+    major, minor, _ = version.split(".")
+
+    assert f"| {major}.{minor}.x" in _read("SECURITY.md"), (
+        f"pyproject publishes {version} but SECURITY.md does not support "
+        f"the {major}.{minor}.x line."
+    )
 
 
 @pytest.mark.parametrize(

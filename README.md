@@ -18,6 +18,12 @@ anyone else's results?** You bring the search index (FAISS, pgvector, hnswlib,
 search results back out. Swapping partitioning schemes is a one-line change,
 and the index backend never has to know.
 
+Two things that promise does **not** mean. It holds for a *scoped* call — one
+you pass a partition key to. Pass no key and there is no filter: that is a
+deliberate cross-partition administrative read. And partition names are routing
+hints, never security principals — enforce isolation in your backing store too.
+The full contract is under [Partitioning strategies](#partitioning-strategies).
+
 It is the bottom, most generic layer of a three-repo MIT-licensed stack — the
 partitioning *protocol* (a *protocol* here is just the set of methods a search
 backend must provide — Python's `typing.Protocol`, nothing to subclass),
@@ -41,7 +47,7 @@ flowchart TD
     V --> M --> S --> B --> R
 ```
 
-**Status:** v0.3.0, alpha. Small and focused by design — the foundation, not
+**Status:** v0.4.0, alpha. Small and focused by design — the foundation, not
 the headline. The hosted CI run and the full local gate pass at **99.22%
 coverage measured with branches enabled**, with strict mypy, lint, and
 formatting. The gate runs `--cov-branch` and enforces a ≥90% branch coverage
@@ -85,8 +91,7 @@ A teaser against the bundled in-memory reference index — produces real output.
 
 ```python
 import asyncio
-from edgeproc_core import GlobalPartitionStrategy, IndexManager
-from edgeproc_core.vector_mgmt.core.types import VectorEmbedding
+from edgeproc_core import GlobalPartitionStrategy, IndexManager, VectorEmbedding
 from edgeproc_core.vector_mgmt.testing import in_memory_factory
 
 async def demo() -> None:
@@ -180,14 +185,14 @@ uv pip install edgeproc-core
 In your `pyproject.toml`:
 ```toml
 dependencies = [
-  "edgeproc-core>=0.2.1",
+  "edgeproc-core>=0.4.0",
 ]
 ```
 
 Verify it worked:
 ```bash
 python -c "import edgeproc_core; print(edgeproc_core.__version__)"
-# 0.2.1
+# 0.4.0
 ```
 
 Prefer to build from source? Pin a full commit SHA — Git cannot repoint it, so
@@ -201,7 +206,9 @@ uv pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.gi
 > were cut before the import package was renamed to `edgeproc_core`, so they
 > ship the old `shared_libs_python` module and every example here would raise
 > `ModuleNotFoundError`. Pin a commit at or after the rename (like the one
-> above), or install `v0.2.1`+ from PyPI as shown first.
+> above), or install from PyPI as shown first. Use `0.4.0` or newer: `0.2.1`
+> and `0.2.2` carry a cross-tenant delete defect fixed in `0.3.0`, and `0.3.0`
+> ships without the `conformance` module its README documents.
 
 For local development:
 ```bash
