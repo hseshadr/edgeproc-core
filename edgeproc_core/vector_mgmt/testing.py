@@ -38,7 +38,10 @@ class InMemoryVectorIndex:
         self.index_name = index_name
         self.config = config or IndexConfig()
         self._embeddings: dict[str, VectorEmbedding] = {}
-        self._deleted: set[str] = set()
+        #: Tombstoned id -> the row it removed, or ``None`` when the id was never
+        #: held. Keeping the row is what lets a scoped ``get_stats`` attribute a
+        #: tombstone to the partition it came from instead of to whoever asks.
+        self._deleted: dict[str, VectorEmbedding | None] = {}
 
     async def insert(self, embeddings: list[VectorEmbedding]) -> None:
         """Insert embeddings, ignoring any whose id has been tombstoned."""
@@ -63,24 +66,44 @@ class InMemoryVectorIndex:
         scored.sort(key=lambda pair: pair[1])
         return scored[:k]
 
-    async def delete(self, entity_ids: list[str]) -> None:
-        """Tombstone the given ``entity_ids`` and drop them from the live set."""
+    async def delete(self, entity_ids: list[str], filters: Metadata | None = None) -> None:
+        """Tombstone the given ``entity_ids`` that ``filters`` matches, and drop them."""
         for entity_id in entity_ids:
-            self._deleted.add(entity_id)
-            self._embeddings.pop(entity_id, None)
+            if self._out_of_scope(entity_id, filters):
+                continue
+            self._deleted[entity_id] = self._embeddings.pop(entity_id, None)
 
-    async def get_stats(self) -> IndexStats:
-        """Return live stats: count, tombstone share, and a fake size."""
-        live = len(self._embeddings)
-        tombstoned = len(self._deleted)
+    def _out_of_scope(self, entity_id: str, filters: Metadata | None) -> bool:
+        """True when a scoped delete must leave ``entity_id`` entirely alone.
+
+        An id this index does not hold matches no filter, so a scoped delete
+        cannot tombstone it — otherwise one partition could block an id another
+        partition has not inserted yet.
+        """
+        if not filters:
+            return False
+        held = self._embeddings.get(entity_id)
+        return held is None or not _matches(held, filters)
+
+    def _live_count(self, filters: Metadata | None) -> int:
+        """Live rows ``filters`` matches (all of them when unscoped)."""
+        return sum(1 for emb in self._embeddings.values() if _matches(emb, filters))
+
+    def _tombstone_count(self, filters: Metadata | None) -> int:
+        """Tombstones attributable to ``filters`` (all of them when unscoped)."""
+        return sum(1 for emb in self._deleted.values() if _tombstone_matches(emb, filters))
+
+    async def get_stats(self, filters: Metadata | None = None) -> IndexStats:
+        """Return stats for the rows ``filters`` matches: count, tombstone share, fake size."""
+        live = self._live_count(filters)
+        tombstoned = self._tombstone_count(filters)
         total = live + tombstoned
-        pct = (tombstoned / total * 100.0) if total > 0 else 0.0
         return IndexStats(
             index_name=self.index_name,
             vector_count=live,
             index_size_mb=live * 0.001,
             tombstone_count=tombstoned,
-            tombstone_percentage=pct,
+            tombstone_percentage=(tombstoned / total * 100.0) if total > 0 else 0.0,
         )
 
     async def rebuild(self, config: IndexConfig | None = None) -> None:
@@ -93,6 +116,17 @@ class InMemoryVectorIndex:
 async def in_memory_factory(name: str, config: IndexConfig | None = None) -> VectorIndex:
     """Drop-in ``IndexFactory`` that returns a fresh ``InMemoryVectorIndex``."""
     return InMemoryVectorIndex(name, config)
+
+
+def _tombstone_matches(removed: VectorEmbedding | None, filters: Metadata | None) -> bool:
+    """Attribute a tombstone to a scope only when the row it removed is known.
+
+    An id tombstoned without ever being held belongs to no partition, so it
+    counts in the physical total and in no scoped one.
+    """
+    if not filters:
+        return True
+    return removed is not None and _matches(removed, filters)
 
 
 def _matches(emb: VectorEmbedding, filters: Metadata | None) -> bool:

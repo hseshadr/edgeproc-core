@@ -42,11 +42,11 @@ flowchart TD
 ```
 
 **Status:** v0.2.3, alpha. Small and focused by design — the foundation, not
-the headline. The hosted CI run and the full local gate pass at **98.41%
+the headline. The hosted CI run and the full local gate pass at **98.61%
 coverage measured with branches enabled**, with strict mypy, lint, and
 formatting. The gate runs `--cov-branch` and enforces a ≥90% branch coverage
 floor, so that is a measurement and not an assertion. Split into its two parts:
-98.62% of statements and 97.54% of branches are covered. A gate step re-derives
+98.66% of statements and 98.44% of branches are covered. A gate step re-derives
 all three figures from `coverage.xml` on every run, so this paragraph cannot
 quietly drift away from what the suite actually measures.
 
@@ -212,11 +212,18 @@ optional `partition_key_extractor` callable.
 
 Bucketing means collisions are expected by design: once partition keys outnumber
 buckets, two tenants share one physical index. Isolation does not depend on them
-landing in different buckets — a scoped read filters by partition key inside the
+landing in different buckets — a scoped call filters by partition key inside the
 index. [`tests/test_tenant_isolation.py`](tests/test_tenant_isolation.py) proves
 this by forcing the worst case (`num_buckets=1`, every key colliding) and
 asserting a tenant still sees only its own rows. Partition names are routing
 hints, never security principals: enforce isolation in your backing store too.
+
+`search`, `delete` and `get_stats` all mean the same thing by `partition_key`:
+each one filters, so a caller cannot destroy or count a row it could not read.
+Pass no key and there is no filter — that is the documented administrative,
+cross-partition path. `rebuild_if_needed` is the one deliberate exception: a
+slice of a shared index cannot be compacted on its own, so there `partition_key`
+picks which physical index to maintain and nothing more.
 
 The deep dive (rationale, scaling math, recommended `m` / `ef_construction`)
 lives in [`docs/vector-mgmt-architecture.md`](docs/vector-mgmt-architecture.md).

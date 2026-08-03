@@ -100,12 +100,22 @@ class VectorIndex(Protocol):
         """Search for nearest neighbors. Returns ``(entity_id, distance)`` tuples."""
         ...
 
-    async def delete(self, entity_ids: list[str]) -> None:
-        """Delete embeddings by entity_id."""
+    async def delete(self, entity_ids: list[str], filters: Metadata | None = None) -> None:
+        """Delete embeddings by entity_id, restricted to rows matching ``filters``.
+
+        ``filters`` carries the same partition scope ``search`` receives, so a
+        scoped delete can never reach a row a scoped read could not see. An id
+        that does not match is left alone — including its tombstone, so one
+        partition cannot pre-empt an id another partition has yet to insert.
+        Absent (or empty) filters means an unscoped, administrative delete.
+        """
         ...
 
-    async def get_stats(self) -> IndexStats:
-        """Get index statistics."""
+    async def get_stats(self, filters: Metadata | None = None) -> IndexStats:
+        """Get index statistics, counting only rows matching ``filters``.
+
+        Absent (or empty) filters means the physical index's own totals.
+        """
         ...
 
     async def rebuild(self, config: IndexConfig | None = None) -> None:
