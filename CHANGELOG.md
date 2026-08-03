@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **The publish workflow's registry check failed a release that had actually shipped.**
+  `0.4.0` is live on PyPI, and
+  [its publish run is red](https://github.com/hseshadr/edgeproc-core/actions/runs/30842985605)
+  because the verification step gave PyPI only ~60s to start serving it. Measured
+  propagation runs to ~120s for a normal PyPI release and ~200s for the first publish of a
+  brand-new package name, so the bound was simply too tight. A red run on a live release is
+  worse than noise — it teaches the reader to wave off red publish runs, which is how the
+  six-green-runs-while-the-package-404'd defect comes back. The check is unchanged in
+  design (ask the registry, never trust the uploader, a timeout is still a FAILURE); only
+  its bound moves, to 14 attempts with backoff — 600s of sleep, 3x the slowest case
+  measured — and its failure message now separates "still propagating" from "the release
+  never happened". Text kept identical to `hseshadr/ci`'s `python-publish.yml`, which this
+  job is an inline copy of.
+
 ## [0.4.0] — 2026-08-03
 
 `conformance.py` merged 14 minutes after the `v0.3.0` tag was cut, so the published
