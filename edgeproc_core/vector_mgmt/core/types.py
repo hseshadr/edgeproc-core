@@ -97,7 +97,15 @@ class VectorIndex(Protocol):
         filters: Metadata | None = None,
         ef_search: int | None = None,
     ) -> list[tuple[str, float]]:
-        """Search for nearest neighbors. Returns ``(entity_id, distance)`` tuples."""
+        """Search for nearest neighbors. Returns ``(entity_id, distance)`` tuples.
+
+        Filter keys are **ANDed**: a row is returned only when it matches every
+        one of them. That is not a stylistic preference. ``IndexManager`` merges
+        the partition scope *into* the caller's filters, so ORing the keys would
+        stop the partition key from narrowing anything — a tenant-scoped search
+        carrying any filter of its own would return every other tenant's matching
+        rows. Absent (or empty) filters means no scope at all.
+        """
         ...
 
     async def delete(self, entity_ids: list[str], filters: Metadata | None = None) -> None:
@@ -107,14 +115,22 @@ class VectorIndex(Protocol):
         scoped delete can never reach a row a scoped read could not see. An id
         that does not match is left alone — including its tombstone, so one
         partition cannot pre-empt an id another partition has yet to insert.
-        Absent (or empty) filters means an unscoped, administrative delete.
+        Filter keys are ANDed, exactly as in ``search``; ORing them here is
+        cross-partition data destruction rather than merely a leak.
+
+        Absent (or empty) filters means an unscoped, administrative delete. An
+        *empty mapping* is the shape that reaches a backend in practice —
+        ``IndexManager`` composes ``{}``, never ``None`` — so reading it as a
+        scope no row satisfies silently deletes nothing and reports success.
         """
         ...
 
     async def get_stats(self, filters: Metadata | None = None) -> IndexStats:
         """Get index statistics, counting only rows matching ``filters``.
 
-        Absent (or empty) filters means the physical index's own totals.
+        Filter keys are ANDed, exactly as in ``search``. Absent (or empty) filters
+        means the physical index's own totals — and ``IndexManager`` composes the
+        empty mapping, not ``None``, whenever a caller asks for unscoped stats.
         """
         ...
 
