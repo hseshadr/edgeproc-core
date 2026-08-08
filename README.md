@@ -48,11 +48,11 @@ flowchart TD
 ```
 
 **Status:** v0.4.0, alpha. Small and focused by design — the foundation, not
-the headline. The hosted CI run and the full local gate pass at **99.22%
+the headline. The hosted CI run and the full local gate pass at **99.28%
 coverage measured with branches enabled**, with strict mypy, lint, and
 formatting. The gate runs `--cov-branch` and enforces a ≥90% branch coverage
 floor, so that is a measurement and not an assertion. Split into its two parts:
-99.02% of statements and 100.00% of branches are covered. A gate step re-derives
+99.10% of statements and 100.00% of branches are covered. A gate step re-derives
 all three figures from `coverage.xml` on every run, so this paragraph cannot
 quietly drift away from what the suite actually measures.
 
@@ -163,11 +163,26 @@ actually applied:
 | --- | --- |
 | `rows_are_readable_back` | Nothing was stored, so every result below would be vacuous |
 | `search_applies_filters` | A scoped read returns someone else's rows |
+| `search_ands_multi_key_filters` | Filter keys ORed, so a partition key narrows nothing |
+| `empty_filters_search_is_unscoped` | `filters={}` read as a scope, so an admin read sees nothing |
 | `scoped_delete_spares_other_partitions` | **Cross-partition data destruction** |
 | `scoped_delete_removes_its_own_rows` | A backend "passing" by never deleting |
+| `multi_key_delete_ands_its_filters` | **Cross-partition destruction via ORed filter keys** |
 | `unscoped_delete_is_administrative` | An unscoped delete silently doing nothing |
+| `empty_filters_delete_is_administrative` | `filters={}` silently deleting nothing and reporting success |
 | `unscoped_stats_report_the_physical_total` | Stats that never saw the rows |
+| `empty_filters_stats_report_the_physical_total` | `filters={}` counted as an empty scope |
 | `scoped_stats_count_only_their_partition` | A row count leaked across partitions |
+| `multi_key_stats_count_the_intersection` | A count inflated by a neighbour's rows |
+
+**Two things the checks depend on, and why.** Filter keys are **ANDed** — a row must
+match every one of them. `IndexManager` merges the partition scope *into* your
+filters, so a backend that ORs them lets the partition key stop narrowing anything:
+a tenant-scoped search carrying any filter of its own returns every other tenant's
+matching rows, and the matching delete destroys them. And an **empty filter mapping
+is no scope at all**, identical to passing none. That is not a corner case: the
+manager composes `{}` — never `None` — for every unscoped call, so it is the only
+shape an administrative delete ever reaches your backend in.
 
 What it does **not** grade: recall, latency, `rebuild()`, and how you attribute
 tombstones to a scope. Those are backend-specific and untested here.

@@ -25,6 +25,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fires on neither, so this repository's pre-existing history has never been scanned.
 
 ### Fixed
+- **The conformance suite certified backends that leak.** `assert_vector_index_conformance`
+  is the contract a storage backend must satisfy, and through 0.4.0 it could be passed by
+  two implementations that break tenant isolation. Both holes are the same shape — a
+  method never called with an argument shape the library itself produces — and both are
+  now closed, taking the suite from 7 checks to 13.
+
+  *Filter keys were never shown to be ANDed.* Every filter the suite passed carried
+  exactly **one key**, and one key means the same thing under AND and under OR. The suite
+  was therefore structurally incapable of telling them apart, and graded an ORing backend
+  as conformant. This is not academic: `IndexManager._compose_filters` merges the
+  partition scope *into* the caller's filters, so every scoped call carrying a filter of
+  its own is a two-key filter — and under OR the partition key stops narrowing anything.
+  A tenant-scoped `search` returns every other tenant's matching rows, and the matching
+  `delete` destroys them. The suite now seeds a second metadata dimension
+  (`conformance_tier`) and grades a two-key filter on `search`, `delete` and `get_stats`,
+  failing a backend that matches too many rows *or* too few.
+
+  *`filters={}` was never passed.* The suite called `delete(ids)` and
+  `delete(ids, filters={key: value})`, never `delete(ids, filters={})` — which is the one
+  shape that matters, because `_compose_filters(None, None)` returns `{}` and never
+  `None`. An empty mapping is how **every** unscoped call the library makes actually
+  reaches a backend. A backend reading it as "a scope no row satisfies" — the empty
+  `IN ()` clause a SQL renderer produces by accident — silently no-ops every
+  administrative delete, deletes nothing, raises nothing, and passed conformance. Graded
+  now on all three methods.
+
+  Both wrong backends are kept permanently in `tests/test_conformance_suite.py`
+  (`_OrsMultiKeyFiltersIndex`, `_EmptyFiltersMatchNothingIndex`) and asserted to be
+  rejected by name, alongside the fixtures that were already there. The shipped
+  `InMemoryVectorIndex` needed no change: it was already correct on both properties, but
+  nothing had ever proven it. `MockVectorIndex`, the backend `tests/test_index_manager.py`
+  grades the manager's scoping against, is now run through the suite too — it was a second
+  backend that had never been certified at all.
+
+### Changed
+- **`VectorIndex`'s docstrings now state the two rules the suite grades**, which were
+  previously implied by `IndexManager`'s behaviour and written down nowhere: filter keys
+  are ANDed, and an empty filter mapping is the absence of a scope rather than an empty
+  one. A contract a backend author cannot read is a contract they will get wrong.
+- `assert_vector_index_conformance` raises `ValueError` when `partition_key_name` is
+  `"conformance_tier"`, the key the suite seeds as its own second dimension. Accepting it
+  would overwrite the tier on every row and quietly collapse the multi-key checks back
+  into single-key ones — reporting a pass on the exact property it could no longer see.
 - **The publish workflow's registry check failed a release that had actually shipped.**
   `0.4.0` is live on PyPI, and
   [its publish run is red](https://github.com/hseshadr/edgeproc-core/actions/runs/30842985605)
