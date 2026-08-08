@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **The secret scan is now one shared brick, not an inlined copy.** `ci.yml` called
+  `gitleaks/gitleaks-action` directly; it now calls
+  `hseshadr/ci/.github/workflows/secret-scan.yml`, pinned to the commit SHA behind
+  `ci-v3.2.1`. The shared copy is stricter than the one it replaces: it checks out with
+  `persist-credentials: false` and grants `pull-requests: read`, and the inlined job had
+  neither. The reported check name changes from `gitleaks` to `Secret scan / gitleaks`,
+  so `main`'s required-status list has to move with it.
+- **Corrected a false claim about what the secret scan covers.** The old job was labelled
+  a "full-history" scan. It was not one, and neither is this one. On `push` and
+  `pull_request`, gitleaks-action runs with
+  `--log-opts=--no-merges --first-parent <base>^..<head>`, so it reads only the commits
+  that push or PR introduces; `fetch-depth: 0` merely makes the base commit reachable so
+  the range resolves. A genuine full sweep happens only on a `schedule` or
+  `workflow_dispatch` event, where the action omits `--log-opts` entirely — and `ci.yml`
+  fires on neither, so this repository's pre-existing history has never been scanned.
+
 ### Fixed
 - **The publish workflow's registry check failed a release that had actually shipped.**
   `0.4.0` is live on PyPI, and
