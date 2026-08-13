@@ -64,8 +64,8 @@ bash examples/run_loop.sh
 implement `VectorIndex` against FAISS, pgvector, hnswlib, or another store and enforce
 authorization in that store too.
 
-**Artifact status:** Source `main` is v0.4.1, alpha. PyPI currently serves v0.4.1.
-Install 0.4.1 for the strengthened backend-conformance checks described here.
+**Artifact status:** This source and packaged README describe v0.4.2, alpha.
+Install 0.4.2; it supersedes 0.4.1's immutable installation guidance.
 
 The package is published on
 [PyPI](https://pypi.org/project/edgeproc-core/), so `pip install edgeproc-core`
@@ -209,28 +209,28 @@ uv pip install edgeproc-core
 
 In your `pyproject.toml`:
 ```toml
-dependencies = ["edgeproc-core==0.4.1"]
+dependencies = ["edgeproc-core==0.4.2"]
 ```
 
 Verify it worked:
 ```bash
 python -c "import edgeproc_core; print(edgeproc_core.__version__)"
-# 0.4.1
+# 0.4.2
 ```
 
 Prefer to build from source? Pin a full commit SHA — Git cannot repoint it, so
 it is exactly as immutable as a release:
 
 ```bash
-uv pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@6cdf8475b223262821622a021c561aed9213a472"
+uv pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@7efc9f523d8b5c62678f934a346cb98fa8c02fa7"
 ```
 
 > **Why do source pins use a commit and not a tag?** Tags `v0.2.0` and older
 > were cut before the import package was renamed to `edgeproc_core`, so they
 > ship the old `shared_libs_python` module and every example here would raise
 > `ModuleNotFoundError`. Pin a commit at or after the rename (like the one
-> above), or install from PyPI as shown first. `0.4.1` contains the strengthened
-> backend-isolation conformance checks. `0.2.1` and `0.2.2` carry a cross-tenant
+> above), or install from PyPI as shown first. `0.4.2` contains the strengthened
+> source-install contract. `0.2.1` and `0.2.2` carry a cross-tenant
 > delete defect fixed in `0.3.0`, and `0.3.0` ships without the `conformance`
 > module its README documents.
 

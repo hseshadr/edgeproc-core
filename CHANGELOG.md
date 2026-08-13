@@ -7,10 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-- The README's artifact status and install pins now name the published 0.4.1 release.
-  Release preparation kept them on 0.4.0 until PyPI independently served 0.4.1; this
-  post-release update closes that intentional gap without rewriting the tagged section.
+## [0.4.2] — 2026-08-13
+
+This corrective patch supersedes 0.4.1's immutable installation guidance. The runtime
+code is unchanged; the release repairs what source code those instructions select and
+makes that safety property part of the gate.
+
+### Fixed
+- **The documented immutable source pin now selects the supported 0.4.x line.** The old
+  commit still imported successfully but predated the scoped partition-isolation fixes.
+  Every README and installation-guide source command now uses one verified protected-main
+  commit, while PyPI examples name 0.4.2.
+- **The release description no longer snapshots which version PyPI served while the
+  release was being prepared.** It identifies the version packaged with the README, so
+  the immutable PyPI description cannot become stale immediately after publication.
+
+### Added
+- **Source-pin verification now checks behavior, not package shape.** The gate materializes
+  every documented immutable ref, builds and installs it into an isolated target, proves
+  it belongs to the current supported minor line, forces two scopes into one physical
+  bucket, and verifies scoped search, stats, and deletion keep the neighbouring scope
+  intact. An import-only check can no longer certify an unsafe historical snapshot.
 
 ## [0.4.1] — 2026-08-12
 
@@ -522,7 +539,8 @@ shared-libs-python` stack going public together; live demo at https://edge-reco.
 - Full type hints and mypy strict compliance
 - Protocol-based design for extensibility
 
-[Unreleased]: https://github.com/hseshadr/edgeproc-core/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/hseshadr/edgeproc-core/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/hseshadr/edgeproc-core/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/hseshadr/edgeproc-core/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/hseshadr/edgeproc-core/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/hseshadr/edgeproc-core/compare/v0.2.3...v0.3.0

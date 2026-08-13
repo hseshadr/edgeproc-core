@@ -12,7 +12,9 @@ at that ref really contains the import package the docs tell you to import.
 """
 
 import re
+import shutil
 import subprocess
+import sys
 import tomllib
 from collections.abc import Iterable
 from pathlib import Path
@@ -111,6 +113,79 @@ def _pinned_install_refs() -> set[str]:
     return {ref for ref in _documented_install_refs() if _PINNED_REF.match(ref)}
 
 
+def _unpack_ref(ref: str, destination: Path) -> Path:
+    """Materialize an immutable documented ref without using the network."""
+    archive = destination / "source.tar"
+    result = subprocess.run(  # noqa: S603
+        ["git", "archive", "--format=tar", "-o", str(archive), ref],  # noqa: S607
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    source = destination / "source"
+    shutil.unpack_archive(archive, source, filter="data")
+    return source
+
+
+def _install_ref(source: Path, site: Path) -> None:
+    """Build and install a documented source tree into an isolated target."""
+    result = subprocess.run(  # noqa: S603
+        ["uv", "pip", "install", "--no-deps", "--target", str(site), str(source)],  # noqa: S607
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+_PIN_ISOLATION_PROBE = """
+import asyncio
+import os
+from pathlib import Path
+
+import edgeproc_core
+from edgeproc_core import BucketedPartitionStrategy, IndexManager, VectorEmbedding
+from edgeproc_core.vector_mgmt.testing import in_memory_factory
+
+
+async def verify():
+    site = Path(os.environ["PIN_SITE"]).resolve()
+    assert Path(edgeproc_core.__file__).resolve().is_relative_to(site)
+    strategy = BucketedPartitionStrategy(index_factory=in_memory_factory, num_buckets=1)
+    manager = IndexManager(strategy)
+    await manager.insert([
+        VectorEmbedding(entity_id="a", embedding=[1.0, 0.0], metadata={"tenant_id": "a"}),
+        VectorEmbedding(entity_id="b", embedding=[1.0, 0.0], metadata={"tenant_id": "b"}),
+    ])
+    assert strategy.get_search_partitions("a") == strategy.get_search_partitions("b")
+    assert [item for item, _ in await manager.search([1.0, 0.0], 10, partition_key="a")] == ["a"]
+    stats = await manager.get_stats(partition_key="a")
+    await manager.delete(["a", "b"], partition_key="a")
+    remaining = await manager.search([1.0, 0.0], 10, partition_key="b")
+    observed = (sum(item.vector_count for item in stats), [item for item, _ in remaining])
+    assert observed == (1, ["b"]), "scoped stats or delete crossed the collision"
+
+
+asyncio.run(verify())
+"""
+
+
+def _run_isolation_probe(site: Path, run_dir: Path) -> subprocess.CompletedProcess[str]:
+    """Exercise the installed pin from outside both source trees."""
+    environment = {"PIN_SITE": str(site), "PYTHONPATH": str(site)}
+    return subprocess.run(  # noqa: S603
+        [sys.executable, "-c", _PIN_ISOLATION_PROBE],
+        cwd=run_dir,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
 @pytest.fixture(scope="module")
 def git_repo_available() -> bool:
     """Skip Git-backed checks where there is no repository (e.g. an unpacked sdist)."""
@@ -192,6 +267,48 @@ def test_documented_install_refs_actually_ship_the_import_package(
     so the README's own examples fail at import time.
     """
     assert _install_ref_defects(ROOT, _pinned_install_refs()) == []
+
+
+@pytest.mark.parametrize("ref", sorted(_pinned_install_refs()))
+def test_should_pin_a_supported_release_when_docs_install_source(
+    ref: str,
+    tmp_path: Path,
+) -> None:
+    """A source pin that imports but reports an unsupported line is still unsafe."""
+    # Given
+    source = _unpack_ref(ref, tmp_path)
+
+    # When
+    version = str(tomllib.loads((source / "pyproject.toml").read_text())["project"]["version"])
+    major, minor, _patch = version.split(".")
+    current = str(tomllib.loads(_read("pyproject.toml"))["project"]["version"])
+
+    # Then
+    assert (major, minor) == tuple(current.split(".")[:2]), (
+        f"Documented source ref {ref} reports {version}, outside current line {current}."
+    )
+    assert f"| {major}.{minor}.x" in _read("SECURITY.md"), (
+        f"Documented source ref {ref} reports {version}, outside SECURITY.md's supported line."
+    )
+
+
+@pytest.mark.parametrize("ref", sorted(_pinned_install_refs()))
+def test_should_preserve_partition_isolation_when_documented_source_pin_is_installed(
+    ref: str,
+    tmp_path: Path,
+) -> None:
+    """Import success is insufficient: the installed pin must preserve scoped data."""
+    # Given
+    source = _unpack_ref(ref, tmp_path)
+    site, run_dir = tmp_path / "site", tmp_path / "run"
+    run_dir.mkdir()
+    _install_ref(source, site)
+
+    # When
+    result = _run_isolation_probe(site, run_dir)
+
+    # Then
+    assert result.returncode == 0, result.stderr
 
 
 #: The pre-rename import package, as it sat in the tree before `v0.2.1`.
@@ -390,11 +507,11 @@ def test_readme_links_the_operations_contract() -> None:
 
 def test_readme_status_matches_package_version() -> None:
     version = tomllib.loads(_read("pyproject.toml"))["project"]["version"]
-    assert f"Source `main` is v{version}" in _read("README.md")
+    assert f"This source and packaged README describe v{version}" in _read("README.md")
 
 
-def test_should_advertise_the_release_when_registry_proof_exists() -> None:
-    """Once released, every front-door install claim must name the registry version."""
+def test_should_describe_the_packaged_release_without_a_stale_registry_claim() -> None:
+    """The immutable description must identify itself, not snapshot registry state."""
     # Given
     version = tomllib.loads(_read("pyproject.toml"))["project"]["version"]
 
@@ -402,10 +519,10 @@ def test_should_advertise_the_release_when_registry_proof_exists() -> None:
     readme = _read("README.md")
 
     # Then
-    assert f"PyPI currently serves v{version}" in readme
+    assert f"This source and packaged README describe v{version}" in readme
     assert f'"edgeproc-core=={version}"' in readme
     assert f"# {version}" in readme
-    assert "do not declare `edgeproc-core>=0.4.1` until PyPI serves it" not in readme
+    assert "PyPI currently serves" not in readme
     assert f"## [{version}]" in _read("CHANGELOG.md")
 
 
