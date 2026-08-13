@@ -47,7 +47,7 @@ flowchart TD
     V --> M --> S --> B --> R
 ```
 
-**Status:** v0.4.0, alpha. Small and focused by design — the foundation, not
+**Status:** v0.4.1, alpha. Small and focused by design — the foundation, not
 the headline. The hosted CI run and the full local gate pass at **99.28%
 coverage measured with branches enabled**, with strict mypy, lint, and
 formatting. The gate runs `--cov-branch` and enforces a ≥90% branch coverage
@@ -200,14 +200,14 @@ uv pip install edgeproc-core
 In your `pyproject.toml`:
 ```toml
 dependencies = [
-  "edgeproc-core>=0.4.0",
+  "edgeproc-core>=0.4.1",
 ]
 ```
 
 Verify it worked:
 ```bash
 python -c "import edgeproc_core; print(edgeproc_core.__version__)"
-# 0.4.0
+# 0.4.1
 ```
 
 Prefer to build from source? Pin a full commit SHA — Git cannot repoint it, so
@@ -221,7 +221,7 @@ uv pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.gi
 > were cut before the import package was renamed to `edgeproc_core`, so they
 > ship the old `shared_libs_python` module and every example here would raise
 > `ModuleNotFoundError`. Pin a commit at or after the rename (like the one
-> above), or install from PyPI as shown first. Use `0.4.0` or newer: `0.2.1`
+> above), or install from PyPI as shown first. Use `0.4.1` or newer: `0.2.1`
 > and `0.2.2` carry a cross-tenant delete defect fixed in `0.3.0`, and `0.3.0`
 > ships without the `conformance` module its README documents.
 
