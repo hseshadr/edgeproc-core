@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "edgeproc-core"
-version = "0.4.1"
+version = "0.4.2"
 description = "Vector partitioning and generic partition-key management for Python."
 readme = "README.md"
 requires-python = ">=3.13"
