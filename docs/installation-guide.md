@@ -63,10 +63,10 @@ cannot repoint it, so it is exactly as immutable as a release:
 
 ```bash
 # uv
-uv pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@7efc9f523d8b5c62678f934a346cb98fa8c02fa7"
+uv pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@f8c8af7f3868effe603d78f72b7873b11dce2572"
 
 # pip
-python -m pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@7efc9f523d8b5c62678f934a346cb98fa8c02fa7"
+python -m pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@f8c8af7f3868effe603d78f72b7873b11dce2572"
 ```
 
 ### Why do source pins use a commit and not a tag?
@@ -133,7 +133,7 @@ For the currently documented pin:
 
 ```bash
 uv pip install --upgrade --force-reinstall \
-  "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@7efc9f523d8b5c62678f934a346cb98fa8c02fa7"
+  "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@f8c8af7f3868effe603d78f72b7873b11dce2572"
 ```
 
 ## Troubleshooting
@@ -155,7 +155,7 @@ Confirm the pinned commit exists on the public repository:
 
 ```bash
 git ls-remote https://github.com/hseshadr/edgeproc-core.git | \
-  grep 7efc9f523d8b5c62678f934a346cb98fa8c02fa7
+  grep f8c8af7f3868effe603d78f72b7873b11dce2572
 ```
 
 ### `ModuleNotFoundError: No module named 'edgeproc_core'`
@@ -175,7 +175,7 @@ Prefer an explicit forced reinstall over clearing the entire shared `uv` cache:
 
 ```bash
 uv pip install --upgrade --force-reinstall \
-  "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@7efc9f523d8b5c62678f934a346cb98fa8c02fa7"
+  "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@f8c8af7f3868effe603d78f72b7873b11dce2572"
 ```
 
 The supported release line and vulnerability-reporting process are documented

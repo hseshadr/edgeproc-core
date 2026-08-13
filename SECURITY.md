@@ -6,8 +6,8 @@ We provide security updates for the following versions:
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.4.x   | :white_check_mark: |
-| < 0.4   | :x:                |
+| >=0.4.2 | :white_check_mark: |
+| <0.4.2  | :x:                |
 
 ## Reporting a Vulnerability
 
@@ -81,4 +81,3 @@ documented in [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
 ## Thank You
 
 Thank you for helping keep edgeproc-core and its users safe!
-

@@ -16,8 +16,9 @@ makes that safety property part of the gate.
 ### Fixed
 - **The documented immutable source pin now selects the supported 0.4.x line.** The old
   commit still imported successfully but predated the scoped partition-isolation fixes.
-  Every README and installation-guide source command now uses one verified protected-main
-  commit, while PyPI examples name 0.4.2.
+  Every README and installation-guide source command now uses the protected-main 0.4.2
+  preparation commit, while PyPI examples name 0.4.2. `SECURITY.md` marks earlier
+  versions superseded.
 - **The release description no longer snapshots which version PyPI served while the
   release was being prepared.** It identifies the version packaged with the README, so
   the immutable PyPI description cannot become stale immediately after publication.

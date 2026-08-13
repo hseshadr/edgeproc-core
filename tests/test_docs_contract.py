@@ -284,10 +284,10 @@ def test_should_pin_a_supported_release_when_docs_install_source(
     current = str(tomllib.loads(_read("pyproject.toml"))["project"]["version"])
 
     # Then
-    assert (major, minor) == tuple(current.split(".")[:2]), (
-        f"Documented source ref {ref} reports {version}, outside current line {current}."
+    assert version == current, (
+        f"Documented source ref {ref} reports {version}, not current release {current}."
     )
-    assert f"| {major}.{minor}.x" in _read("SECURITY.md"), (
+    assert f"| >={major}.{minor}.{_patch}" in _read("SECURITY.md"), (
         f"Documented source ref {ref} reports {version}, outside SECURITY.md's supported line."
     )
 
@@ -471,7 +471,7 @@ def test_docs_do_not_advertise_a_release_artifact_that_does_not_exist() -> None:
 
 
 def test_security_policy_supports_the_current_release_line() -> None:
-    """SECURITY.md must name the *current* minor line — derived, not a frozen literal.
+    """SECURITY.md must name the current supported floor — derived, not frozen.
 
     This asserted the literal `| 0.2.x` while the package shipped `0.3.0`. It
     pinned a spelling instead of the contract, so it went on passing as the
@@ -480,12 +480,12 @@ def test_security_policy_supports_the_current_release_line() -> None:
     `pyproject.toml` means the two files can only ever agree.
     """
     version = str(tomllib.loads(_read("pyproject.toml"))["project"]["version"])
-    major, minor, _ = version.split(".")
+    security = _read("SECURITY.md")
 
-    assert f"| {major}.{minor}.x" in _read("SECURITY.md"), (
-        f"pyproject publishes {version} but SECURITY.md does not support "
-        f"the {major}.{minor}.x line."
+    assert f"| >={version}" in security, (
+        f"pyproject publishes {version} but SECURITY.md does not support that release floor."
     )
+    assert f"| <{version}" in security, "Superseded releases are not marked unsupported."
 
 
 @pytest.mark.parametrize(
