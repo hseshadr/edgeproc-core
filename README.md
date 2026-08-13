@@ -64,10 +64,8 @@ bash examples/run_loop.sh
 implement `VectorIndex` against FAISS, pgvector, hnswlib, or another store and enforce
 authorization in that store too.
 
-**Artifact status:** Source `main` is v0.4.1, alpha and prepared for release. PyPI currently serves v0.4.0.
-Install 0.4.0 for the published package; use this source tree to evaluate the
-strengthened 0.4.1 backend-conformance checks. The README never
-assumes a prepared source release has already reached the registry.
+**Artifact status:** Source `main` is v0.4.1, alpha. PyPI currently serves v0.4.1.
+Install 0.4.1 for the strengthened backend-conformance checks described here.
 
 The package is published on
 [PyPI](https://pypi.org/project/edgeproc-core/), so `pip install edgeproc-core`
@@ -211,13 +209,13 @@ uv pip install edgeproc-core
 
 In your `pyproject.toml`:
 ```toml
-dependencies = ["edgeproc-core==0.4.0"]
+dependencies = ["edgeproc-core==0.4.1"]
 ```
 
 Verify it worked:
 ```bash
 python -c "import edgeproc_core; print(edgeproc_core.__version__)"
-# 0.4.0
+# 0.4.1
 ```
 
 Prefer to build from source? Pin a full commit SHA — Git cannot repoint it, so
@@ -231,10 +229,10 @@ uv pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.gi
 > were cut before the import package was renamed to `edgeproc_core`, so they
 > ship the old `shared_libs_python` module and every example here would raise
 > `ModuleNotFoundError`. Pin a commit at or after the rename (like the one
-> above), or install from PyPI as shown first. Source `main` contains the 0.4.1
-> conformance fix, but do not declare `edgeproc-core>=0.4.1` until PyPI serves it. `0.2.1`
-> and `0.2.2` carry a cross-tenant delete defect fixed in `0.3.0`, and `0.3.0`
-> ships without the `conformance` module its README documents.
+> above), or install from PyPI as shown first. `0.4.1` contains the strengthened
+> backend-isolation conformance checks. `0.2.1` and `0.2.2` carry a cross-tenant
+> delete defect fixed in `0.3.0`, and `0.3.0` ships without the `conformance`
+> module its README documents.
 
 For local development:
 ```bash

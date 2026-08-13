@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- The README's artifact status and install pins now name the published 0.4.1 release.
+  Release preparation kept them on 0.4.0 until PyPI independently served 0.4.1; this
+  post-release update closes that intentional gap without rewriting the tagged section.
+
 ## [0.4.1] — 2026-08-12
 
 This patch release makes the strengthened backend-isolation conformance contract
