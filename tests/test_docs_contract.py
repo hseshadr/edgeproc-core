@@ -393,15 +393,20 @@ def test_readme_status_matches_package_version() -> None:
     assert f"Source `main` is v{version}" in _read("README.md")
 
 
-def test_conformance_isolation_fix_is_not_advertised_as_published_early() -> None:
-    """The fixed suite cannot be advertised as installable before registry proof."""
+def test_should_advertise_the_release_when_registry_proof_exists() -> None:
+    """Once released, every front-door install claim must name the registry version."""
+    # Given
     version = tomllib.loads(_read("pyproject.toml"))["project"]["version"]
+
+    # When
     readme = _read("README.md")
 
-    assert version == "0.4.1"
-    assert "PyPI currently serves v0.4.0" in readme
-    assert '"edgeproc-core>=0.4.1"' not in readme
-    assert "## [0.4.1]" in _read("CHANGELOG.md")
+    # Then
+    assert f"PyPI currently serves v{version}" in readme
+    assert f'"edgeproc-core=={version}"' in readme
+    assert f"# {version}" in readme
+    assert "do not declare `edgeproc-core>=0.4.1` until PyPI serves it" not in readme
+    assert f"## [{version}]" in _read("CHANGELOG.md")
 
 
 def test_readme_leads_with_a_copy_paste_demo_before_evidence() -> None:
