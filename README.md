@@ -47,23 +47,44 @@ flowchart TD
     V --> M --> S --> B --> R
 ```
 
-**Status:** v0.4.1, alpha. Small and focused by design — the foundation, not
-the headline. The hosted CI run and the full local gate pass at **99.28%
-coverage measured with branches enabled**, with strict mypy, lint, and
-formatting. The gate runs `--cov-branch` and enforces a ≥90% branch coverage
-floor, so that is a measurement and not an assertion. Split into its two parts:
-99.10% of statements and 100.00% of branches are covered. A gate step re-derives
-all three figures from `coverage.xml` on every run, so this paragraph cannot
-quietly drift away from what the suite actually measures.
+## Quickstart
 
-As of `v0.2.1` the package is published on
+Run every shipped partitioning strategy against the bundled in-memory reference
+index. It inserts realistic tenant-scoped vectors, searches them, rebuilds a hot/cold
+partition, and shows canonical errors. No database or account is required.
+
+```bash
+git clone https://github.com/hseshadr/edgeproc-core.git
+cd edgeproc-core
+uv sync
+bash examples/run_loop.sh
+```
+
+`InMemoryVectorIndex` is for examples and conformance tests. Production callers
+implement `VectorIndex` against FAISS, pgvector, hnswlib, or another store and enforce
+authorization in that store too.
+
+**Artifact status:** Source `main` is v0.4.1, alpha and prepared for release. PyPI currently serves v0.4.0.
+Install 0.4.0 for the published package; use this source tree to evaluate the
+strengthened 0.4.1 backend-conformance checks. The README never
+assumes a prepared source release has already reached the registry.
+
+The package is published on
 [PyPI](https://pypi.org/project/edgeproc-core/), so `pip install edgeproc-core`
 is the supported install. See [Installation](#installation).
+
+## Measured evidence
+
+The hosted CI run and full local gate pass at **99.28% coverage measured with branches enabled**,
+with strict mypy, lint, and formatting. The gate runs `--cov-branch` and
+enforces a ≥90% branch coverage floor. Split into its two parts: 99.10% of statements
+and 100.00% of branches are covered. A gate step re-derives all three figures from
+`coverage.xml` so this paragraph cannot quietly drift.
 
 The bundled benchmark (`benchmarks/benchmark.py`) reports
 **routing p50 5.8 ms / p95 6.0 ms** for 10,000 embeddings across 256 buckets,
 and **reference search p50 19.0 ms / p95 19.2 ms** against the bundled
-in-memory index — see [`InMemoryVectorIndex`](#60-second-quickstart) below for
+in-memory index — see [`InMemoryVectorIndex`](#python-api-teaser) below for
 what that reference index is (and isn't).
 
 Measured 2026-07-20 on an Apple M3 Pro (macOS 26.5, arm64, CPython 3.13.5),
@@ -85,7 +106,7 @@ This repository is a protocol and reference implementation, not a hosted search
 service. The caller owns backend isolation, resource ceilings, and production SLOs;
 `edge-proc` supplies the local runtime that consumes these contracts.
 
-## 60-second quickstart
+## Python API teaser
 
 A teaser against the bundled in-memory reference index — produces real output.
 
@@ -104,15 +125,6 @@ async def demo() -> None:
     print(await manager.search([0.1, 0.2, 0.3, 0.4], k=5, partition_key="t1"))
 
 asyncio.run(demo())  # → [('a', ~0.0)]  exact match, cosine distance ≈ 0
-```
-
-Or run all five bundled examples end-to-end:
-
-```bash
-git clone https://github.com/hseshadr/edgeproc-core.git
-cd edgeproc-core
-uv sync
-bash examples/run_loop.sh
 ```
 
 `InMemoryVectorIndex` is a reference implementation for tests and examples; in
@@ -199,15 +211,13 @@ uv pip install edgeproc-core
 
 In your `pyproject.toml`:
 ```toml
-dependencies = [
-  "edgeproc-core>=0.4.1",
-]
+dependencies = ["edgeproc-core==0.4.0"]
 ```
 
 Verify it worked:
 ```bash
 python -c "import edgeproc_core; print(edgeproc_core.__version__)"
-# 0.4.1
+# 0.4.0
 ```
 
 Prefer to build from source? Pin a full commit SHA — Git cannot repoint it, so
@@ -221,7 +231,8 @@ uv pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.gi
 > were cut before the import package was renamed to `edgeproc_core`, so they
 > ship the old `shared_libs_python` module and every example here would raise
 > `ModuleNotFoundError`. Pin a commit at or after the rename (like the one
-> above), or install from PyPI as shown first. Use `0.4.1` or newer: `0.2.1`
+> above), or install from PyPI as shown first. Source `main` contains the 0.4.1
+> conformance fix, but do not declare `edgeproc-core>=0.4.1` until PyPI serves it. `0.2.1`
 > and `0.2.2` carry a cross-tenant delete defect fixed in `0.3.0`, and `0.3.0`
 > ships without the `conformance` module its README documents.
 

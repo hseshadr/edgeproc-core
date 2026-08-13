@@ -390,16 +390,26 @@ def test_readme_links_the_operations_contract() -> None:
 
 def test_readme_status_matches_package_version() -> None:
     version = tomllib.loads(_read("pyproject.toml"))["project"]["version"]
-    assert f"**Status:** v{version}" in _read("README.md")
+    assert f"Source `main` is v{version}" in _read("README.md")
 
 
-def test_conformance_isolation_fix_has_a_new_installable_version() -> None:
-    """The fixed suite cannot be advertised under the already-published 0.4.0 wheel."""
+def test_conformance_isolation_fix_is_not_advertised_as_published_early() -> None:
+    """The fixed suite cannot be advertised as installable before registry proof."""
     version = tomllib.loads(_read("pyproject.toml"))["project"]["version"]
+    readme = _read("README.md")
 
     assert version == "0.4.1"
-    assert '"edgeproc-core>=0.4.1"' in _read("README.md")
+    assert "PyPI currently serves v0.4.0" in readme
+    assert '"edgeproc-core>=0.4.1"' not in readme
     assert "## [0.4.1]" in _read("CHANGELOG.md")
+
+
+def test_readme_leads_with_a_copy_paste_demo_before_evidence() -> None:
+    readme = _read("README.md")
+    quickstart = readme.index("## Quickstart")
+
+    assert quickstart < readme.index("## Measured evidence")
+    assert "bash examples/run_loop.sh" in readme[quickstart : readme.index("## Measured evidence")]
 
 
 def test_readme_states_the_python_requirement_before_installing() -> None:
