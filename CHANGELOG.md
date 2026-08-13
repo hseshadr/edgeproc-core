@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-08-12
+
+This patch release makes the strengthened backend-isolation conformance contract
+installable. It also gives successful PyPI uploads a measured ten-minute propagation
+window before declaring the release missing.
+
 ### Changed
 - **The secret scan is now one shared brick, not an inlined copy.** `ci.yml` called
   `gitleaks/gitleaks-action` directly; it now calls
@@ -511,7 +517,8 @@ shared-libs-python` stack going public together; live demo at https://edge-reco.
 - Full type hints and mypy strict compliance
 - Protocol-based design for extensibility
 
-[Unreleased]: https://github.com/hseshadr/edgeproc-core/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/hseshadr/edgeproc-core/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/hseshadr/edgeproc-core/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/hseshadr/edgeproc-core/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/hseshadr/edgeproc-core/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/hseshadr/edgeproc-core/compare/v0.2.2...v0.2.3

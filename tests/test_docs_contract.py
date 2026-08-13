@@ -393,6 +393,15 @@ def test_readme_status_matches_package_version() -> None:
     assert f"**Status:** v{version}" in _read("README.md")
 
 
+def test_conformance_isolation_fix_has_a_new_installable_version() -> None:
+    """The fixed suite cannot be advertised under the already-published 0.4.0 wheel."""
+    version = tomllib.loads(_read("pyproject.toml"))["project"]["version"]
+
+    assert version == "0.4.1"
+    assert '"edgeproc-core>=0.4.1"' in _read("README.md")
+    assert "## [0.4.1]" in _read("CHANGELOG.md")
+
+
 def test_readme_states_the_python_requirement_before_installing() -> None:
     """A cold reader on 3.12 must learn why the install fails before they run it."""
     readme = _read("README.md")
