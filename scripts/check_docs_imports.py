@@ -70,7 +70,7 @@ def documented_imports() -> list[str]:
 def build_wheel(out_dir: Path) -> Path:
     """Build the wheel this release would publish and return its path."""
     subprocess.run(  # noqa: S603
-        ["uv", "build", "--wheel", "--out-dir", str(out_dir)],  # noqa: S607
+        ["uv", "build", "--no-build-isolation", "--wheel", "--out-dir", str(out_dir)],  # noqa: S607
         cwd=ROOT,
         check=True,
         capture_output=True,

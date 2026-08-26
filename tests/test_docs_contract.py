@@ -188,9 +188,9 @@ def _run_isolation_probe(site: Path, run_dir: Path) -> subprocess.CompletedProce
 
 @pytest.fixture(scope="module")
 def git_repo_available() -> bool:
-    """Skip Git-backed checks where there is no repository (e.g. an unpacked sdist)."""
+    """Fail closed when Git-backed release contracts cannot inspect history."""
     if not (ROOT / ".git").exists() or _git("rev-parse", "--git-dir").returncode != 0:
-        pytest.skip("not a git checkout; cannot resolve documented refs")
+        pytest.fail("not a git checkout; cannot resolve documented refs")
     return True
 
 

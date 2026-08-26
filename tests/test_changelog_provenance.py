@@ -64,13 +64,13 @@ def head_sections() -> dict[str, str]:
 
 @pytest.fixture(scope="module")
 def tags() -> list[str]:
-    """Release tags, or a skip when this clone has none (shallow checkout)."""
+    """Release tags; fail closed when provenance cannot be examined."""
     try:
         found = _release_tags()
     except (subprocess.CalledProcessError, FileNotFoundError) as exc:  # pragma: no cover
-        pytest.skip(f"git unavailable, cannot verify changelog provenance: {exc}")
+        pytest.fail(f"git unavailable, cannot verify changelog provenance: {exc}")
     if not found:  # pragma: no cover
-        pytest.skip("no release tags in this clone — fetch tags to verify provenance")
+        pytest.fail("no release tags in this clone — fetch tags to verify provenance")
     return found
 
 
