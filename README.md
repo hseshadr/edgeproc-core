@@ -1,7 +1,6 @@
 # edgeproc-core
 
-[![CI](https://github.com/hseshadr/edgeproc-core/actions/workflows/ci.yml/badge.svg)](https://github.com/hseshadr/edgeproc-core/actions/workflows/ci.yml)
-[![Coverage](https://codecov.io/gh/hseshadr/edgeproc-core/branch/main/graph/badge.svg)](https://codecov.io/gh/hseshadr/edgeproc-core)
+[![Dagger](https://github.com/hseshadr/edgeproc-core/actions/workflows/dagger.yml/badge.svg)](https://github.com/hseshadr/edgeproc-core/actions/workflows/dagger.yml)
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 

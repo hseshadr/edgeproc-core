@@ -188,9 +188,9 @@ def _run_isolation_probe(site: Path, run_dir: Path) -> subprocess.CompletedProce
 
 @pytest.fixture(scope="module")
 def git_repo_available() -> bool:
-    """Skip Git-backed checks where there is no repository (e.g. an unpacked sdist)."""
+    """Fail closed when Git-backed release contracts cannot inspect history."""
     if not (ROOT / ".git").exists() or _git("rev-parse", "--git-dir").returncode != 0:
-        pytest.skip("not a git checkout; cannot resolve documented refs")
+        pytest.fail("not a git checkout; cannot resolve documented refs")
     return True
 
 
@@ -608,3 +608,29 @@ def test_published_coverage_floor_matches_the_configured_floor() -> None:
 
     assert f"--cov-fail-under={configured:.0f}" in addopts
     assert f"≥{configured:.0f}% branch coverage" in _read("README.md")
+
+
+def test_readme_ci_badge_points_at_the_required_dagger_workflow() -> None:
+    """The public build signal must name the check branch protection requires."""
+    badge = "actions/workflows/dagger.yml"
+    readme = _read("README.md")
+
+    assert badge in readme
+    assert "actions/workflows/ci.yml" not in readme
+    assert "codecov.io" not in readme
+
+
+def test_operations_describes_the_exact_source_free_release_boundary() -> None:
+    """Operators need the whole manual Dagger-to-OIDC trust boundary in one place."""
+    operations = " ".join(_read("docs/OPERATIONS.md").split())
+    required = (
+        "workflow_dispatch",
+        "exact current `main` commit",
+        "green hosted `Dagger` check",
+        "full Git history",
+        "without build isolation",
+        "source-free OIDC-bearing job",
+        "no checkout, shell, dependency install, build backend, or project code execution",
+    )
+
+    assert all(claim in operations for claim in required)
