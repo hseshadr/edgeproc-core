@@ -6,6 +6,7 @@ import inspect
 from typing import cast
 
 import dagger
+import pytest
 
 from edgeproc_core.main import EdgeprocCore
 
@@ -19,6 +20,22 @@ class RecordingWorkspace:
     def directory(self, path: str, **_options: object) -> dagger.Directory:
         self.path = path
         return cast(dagger.Directory, object())
+
+
+class RecordingDirectory:
+    """Record history filtering and typed-source overlay behavior."""
+
+    def __init__(self) -> None:
+        self.includes: list[str] = []
+        self.overlay: object | None = None
+
+    def filter(self, *, include: list[str]) -> RecordingDirectory:
+        self.includes = include
+        return self
+
+    def with_directory(self, _path: str, source: object) -> RecordingDirectory:
+        self.overlay = source
+        return self
 
 
 def test_should_select_explicit_root_when_constructing_release_graph() -> None:
@@ -83,3 +100,25 @@ def test_should_actionlint_both_github_workflow_extensions() -> None:
     # Then
     assert "*.yml" in command
     assert "*.yaml" in command
+
+
+def test_should_take_only_git_metadata_from_remote_history(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Given a remote commit with files that may have been deleted in the typed source
+    history = RecordingDirectory()
+    source = object()
+    monkeypatch.setattr(
+        EdgeprocCore,
+        "_release_source",
+        staticmethod(lambda _commit: cast(dagger.Directory, history)),
+    )
+    graph = EdgeprocCore.__new__(EdgeprocCore)
+
+    # When the exact source is composed with its usable Git history
+    result = graph._source_with_history(cast(dagger.Directory, source), "a" * 40)
+
+    # Then no remote working-tree file can survive a typed-source deletion
+    assert history.includes == [".git", ".git/**"]
+    assert history.overlay is source
+    assert result is history

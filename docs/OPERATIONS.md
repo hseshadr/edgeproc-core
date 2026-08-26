@@ -82,6 +82,20 @@ architecture guide labels those values as consumer targets rather than shipped c
 
 ## Release proof
 
-Run `uv run poe gate`, `bash examples/run_loop.sh`, the benchmark above, full-history
-secret scanning, and GitHub CI on the exact commit. Do not publish a release from local
-evidence alone, and do not call a consumer backend healthy from this protocol's tests.
+A release requires a fresh manual `workflow_dispatch`; pushing a tag never publishes by
+itself. Dagger first requires that the requested commit is the exact current `main` commit
+with a green hosted `Dagger` check. It fetches that immutable commit itself and verifies
+exact tag, package-version, and top-changelog identity. Dagger then runs the full gate, the
+real example, the benchmark, the locked dependency audit, and secret scans over both the
+exact snapshot and full Git history. It builds the wheel and sdist without build isolation,
+validates their project and version metadata, and records their literal SHA-256 identities.
+
+Dagger builds and validates in an unprivileged job and exports one exact, short-lived
+candidate. A pinned artifact-upload action is the only bridge out of that job. Its successful
+manual run triggers `publish.yml` from protected default-branch code. That source-free
+OIDC-bearing job only invokes pinned artifact download and the official PyPI publish action;
+it has no checkout, shell, dependency install, build backend, or project code execution. The
+manual dispatch is the fresh publication authorization.
+
+Do not publish from local evidence alone, and do not call a consumer backend healthy from
+this protocol's tests. Record the immutable commit/tag and benchmark JSON for the release.

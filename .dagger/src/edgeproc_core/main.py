@@ -154,7 +154,8 @@ class EdgeprocCore:
         self, source: dagger.Directory, commit_sha: str = ""
     ) -> dagger.Directory:
         history = self._release_source(commit_sha) if commit_sha else self._main_source()
-        return history.with_directory("/", source)
+        git_metadata = history.filter(include=[".git", ".git/**"])
+        return git_metadata.with_directory("/", source)
 
     @function
     async def release_candidate(

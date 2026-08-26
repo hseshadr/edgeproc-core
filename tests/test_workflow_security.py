@@ -6,6 +6,7 @@ import re
 from collections.abc import Mapping
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,6 +14,9 @@ WORKFLOWS = ROOT / ".github/workflows"
 PINNED = re.compile(r"^[\w.-]+/[\w.-]+(?:/[\w./-]+)?@[0-9a-f]{40}$")
 DAGGER_ACTION = "dagger/dagger-for-github"
 CHECKOUT_ACTION = "actions/checkout"
+UPLOAD_ACTION = "actions/upload-artifact"
+DOWNLOAD_ACTION = "actions/download-artifact"
+PUBLISH_ACTION = "pypa/gh-action-pypi-publish"
 
 
 def _mapping(value: object) -> dict[str, object]:
@@ -79,9 +83,61 @@ def test_should_fail_pin_audit_for_a_yaml_bypass(tmp_path: Path) -> None:
     assert _external_actions(tmp_path) == ["actions/checkout@v4"]
 
 
-def test_should_route_shadow_ci_through_dagger_without_replacing_legacy_gate() -> None:
-    document = _workflow("dagger-shadow.yml")
-    job = _job(document, "dagger-shadow")
+def test_should_route_pull_request_and_main_ci_only_through_dagger() -> None:
+    document = _workflow("dagger.yml")
+    job = _job(document, "dagger")
     _assert_thin_dagger(job, "ci --commit-sha=${{ github.sha }}")
-    assert job.get("name") == "Dagger shadow"
-    assert (WORKFLOWS / "ci.yml").is_file()
+    assert job.get("name") == "Dagger"
+
+
+def test_should_route_scheduled_dependency_audit_only_through_dagger() -> None:
+    document = _workflow("security-audit.yml")
+    _assert_thin_dagger(_job(document, "dependency-audit"), "dependency-audit")
+
+
+def test_should_make_release_manual_and_dagger_proven() -> None:
+    document = _workflow("release-candidate.yml")
+    triggers = _mapping(document.get("on"))
+    candidate = _job(document, "candidate")
+    steps = _steps(candidate)
+    assert set(triggers) == {"workflow_dispatch"}
+    assert [_action(step) for step in steps] == [CHECKOUT_ACTION, DAGGER_ACTION, UPLOAD_ACTION]
+    assert all(PINNED.fullmatch(str(step.get("uses"))) for step in steps)
+    invocation = _mapping(steps[1].get("with"))
+    assert invocation.get("verb") == "call"
+    assert str(invocation.get("args", "")).startswith("release-candidate ")
+    assert "--commit-sha=${{ github.sha }}" in str(invocation.get("args"))
+    assert "--github-token=env:GITHUB_TOKEN" in str(invocation.get("args"))
+    assert "export --path=release" in str(invocation.get("args"))
+
+
+def test_should_keep_oidc_publisher_source_free_and_shell_free() -> None:
+    document = _workflow("publish.yml")
+    publish = _job(document, "publish")
+    steps = _steps(publish)
+    triggers = _mapping(document.get("on"))
+    workflow_run = _mapping(triggers.get("workflow_run"))
+    assert workflow_run.get("workflows") == ["Dagger release candidate"]
+    assert workflow_run.get("types") == ["completed"]
+    condition = str(publish.get("if", ""))
+    assert "workflow_run.conclusion == 'success'" in condition
+    assert "workflow_run.event == 'workflow_dispatch'" in condition
+    assert "workflow_run.head_branch == github.event.repository.default_branch" in condition
+    assert _mapping(publish.get("permissions")) == {
+        "actions": "read",
+        "contents": "read",
+        "id-token": "write",
+    }
+    assert [_action(step) for step in steps] == [DOWNLOAD_ACTION, PUBLISH_ACTION]
+    assert all("run" not in step for step in steps)
+    download = _mapping(steps[0].get("with"))
+    assert download.get("run-id") == "${{ github.event.workflow_run.id }}"
+    assert download.get("github-token") == "${{ github.token }}"
+    settings = _mapping(steps[1].get("with"))
+    assert settings.get("packages-dir") == "release/dist"
+    assert settings.get("attestations") is True
+
+
+@pytest.mark.parametrize("workflow", ["ci.yml", "dagger-shadow.yml"])
+def test_should_delete_superseded_ci_ingress(workflow: str) -> None:
+    assert not (WORKFLOWS / workflow).exists()
