@@ -1,4 +1,4 @@
-"""EdgeProc Core's complete quality, security, and release-candidate graph."""
+"""EdgeProc Core's composed quality, security, and candidate graph."""
 
 from __future__ import annotations
 
@@ -14,18 +14,11 @@ UV_IMAGE: Final = (
     "ghcr.io/astral-sh/uv:0.11.32@sha256:"
     "df4cae8f3a96d175e2e5f992e597550000edbe78fdc2594d5cd8de1a217f504c"
 )
-ACTIONLINT_IMAGE: Final = (
-    "rhysd/actionlint:1.7.10@sha256:"
-    "ef8299f97635c4c30e2298f48f30763ab782a4ad2c95b744649439a039421e36"
-)
-GITLEAKS_IMAGE: Final = (
-    "ghcr.io/gitleaks/gitleaks:v8.29.1@sha256:"
-    "aa036a2f4bdfe3cc3c55fa4326308efabb4a6be498c883c864fd1d0d5585438a"
-)
 GIT_PACKAGE: Final = "git=1:2.47.3-0+deb13u1"
 REPOSITORY: Final = "hseshadr/edgeproc-core"
 REPOSITORY_URL: Final = f"https://github.com/{REPOSITORY}.git"
-SHA_LENGTH: Final = 40
+PROJECT_NAME: Final = "edgeproc-core"
+CENTRAL_MODULE_SHA: Final = "95c72573fc11ea6732abb7f7fe8b59c7d245d927"
 SOURCE_EXCLUDES: Final = [
     ".git",
     ".venv",
@@ -37,24 +30,69 @@ SOURCE_EXCLUDES: Final = [
     "**/__pycache__",
     "dist",
 ]
-GITLEAKS_SNAPSHOT: Final = [
-    "gitleaks",
-    "detect",
-    "--source",
-    "/snapshot",
-    "--no-git",
-    "--redact",
-    "--no-banner",
+CANDIDATE_TAG_CHECK: Final = """
+import json
+import os
+from pathlib import Path
+
+manifest = Path('/candidate/artifact/metadata/python-candidate.json')
+actual = json.loads(manifest.read_text(encoding='utf-8'))['tag']
+if actual != os.environ['EXPECTED_TAG']:
+    raise SystemExit('requested tag differs from the verified candidate')
+"""
+WORK_DIRECTORIES: Final = ["mkdir", "-p", "/opt/venv", "/opt/home", "/opt/model-cache", "/opt/tmp"]
+OWNERSHIP_COMMAND: Final = [
+    "chown",
+    "-R",
+    "65532:65532",
+    "/opt/venv",
+    "/opt/home",
+    "/opt/model-cache",
+    "/opt/tmp",
 ]
-GITLEAKS_HISTORY: Final = [
-    "gitleaks",
-    "detect",
-    "--source",
-    "/repo",
-    "--log-opts=--all",
-    "--redact",
-    "--no-banner",
-]
+
+
+def _foundation() -> dagger.Foundation:
+    """Return the exact-SHA generated Foundation dependency."""
+    return dag.foundation()
+
+
+def _python_package() -> dagger.PythonPackage:
+    """Return the exact-SHA generated Python package dependency."""
+    return dag.python_package()
+
+
+def _history(commit_sha: str) -> dagger.Directory:
+    """Return canonical Git metadata for the already-verified commit."""
+    return dag.git(REPOSITORY_URL).commit(commit_sha).tree(depth=0, include_tags=True)
+
+
+def _with_history(source: dagger.Directory, commit_sha: str) -> dagger.Directory:
+    """Overlay the verified caller snapshot onto exact-commit Git metadata."""
+    metadata = _history(commit_sha).filter(include=[".git", ".git/**"])
+    return metadata.with_directory("/", source)
+
+
+# fmt: off
+def _create_candidate(
+    source: dagger.Directory, token: dagger.Secret, commit_sha: str,
+    workflow_run_id: str, run_attempt: int,
+) -> dagger.PythonPackageCandidate:
+    return _python_package().candidate(
+        source, token, REPOSITORY, commit_sha, PROJECT_NAME,
+        CENTRAL_MODULE_SHA, workflow_run_id, run_attempt,
+    )
+
+
+def _verify_candidate(
+    envelope: dagger.Directory, commit_sha: str, workflow_run_id: str, run_attempt: int,
+) -> dagger.Directory:
+    verified = _python_package().verify_candidate(
+        envelope, REPOSITORY, commit_sha, PROJECT_NAME,
+        CENTRAL_MODULE_SHA, workflow_run_id, run_attempt,
+    )
+    return verified.envelope()
+# fmt: on
 
 
 @object_type
@@ -71,203 +109,102 @@ class EdgeprocCore:
         return instance
 
     @function
-    def quality(self) -> dagger.Container:
-        """Run lint, format, strict typing, Grade A complexity, and 90%+ tests."""
-        return self._quality(self._source_with_history(self.source))
+    async def quality(self, commit_sha: str) -> dagger.Container:
+        """Return product quality after exact source binding and the shared guard."""
+        complete = await self._verified_source(self.source, commit_sha)
+        return self._quality(complete)
 
     @function
-    def dependency_audit(self) -> dagger.Container:
-        """Audit the exact frozen dependency graph without suppressions."""
-        return self._dependency_audit(self.source)
-
-    def _dependency_audit(self, source: dagger.Directory) -> dagger.Container:
-        export = [
-            "uv",
-            "export",
-            "--frozen",
-            "--all-extras",
-            "--no-emit-project",
-            "--no-hashes",
-            "-o",
-            "/opt/tmp/audit.txt",
-        ]
-        audit = [
-            "uv",
-            "run",
-            "pip-audit",
-            "-r",
-            "/opt/tmp/audit.txt",
-            "--disable-pip",
-            "--no-deps",
-        ]
-        return self._python(source).with_exec(export).with_exec(audit)
-
-    @function
-    def secret_scan(self, commit_sha: str = "") -> dagger.Container:
-        """Scan the exact snapshot and complete canonical history with Gitleaks."""
-        return self._secret_scan(self.source, commit_sha)
-
-    def _secret_scan(self, source: dagger.Directory, commit_sha: str = "") -> dagger.Container:
-        if commit_sha:
-            self._require_sha(commit_sha)
-            history = dag.git(REPOSITORY_URL).commit(commit_sha).tree(depth=0, include_tags=True)
-        else:
-            history = dag.git(REPOSITORY_URL).branch("main").tree(depth=0, include_tags=True)
-        scan = self._gitleaks().with_directory("/snapshot", source)
-        scan = scan.with_exec(["sh", "-ceu", 'test -n "$(find /snapshot -type f -print -quit)"'])
-        scan = scan.with_exec(GITLEAKS_SNAPSHOT).with_directory("/repo", history)
-        return scan.with_exec(GITLEAKS_HISTORY)
-
-    @function
-    def workflow_security(self) -> dagger.Container:
-        """Validate every GitHub ingress workflow with pinned actionlint."""
-        return self._workflow_security(self.source)
-
-    def _workflow_security(self, source: dagger.Directory) -> dagger.Container:
-        workflows = source.directory(".github/workflows")
-        command = (
-            "find .github/workflows -type f "
-            "\\( -name '*.yml' -o -name '*.yaml' \\) -exec actionlint {} +"
-        )
-        return (
-            self._actionlint()
-            .with_directory("/repo/.github/workflows", workflows)
-            .with_exec(["sh", "-ceu", command])
-        )
+    def dependency_audit(self, commit_sha: str) -> dagger.Container:
+        """Audit the bound frozen graph through the shared Python package Lego."""
+        return self._dependency_audit(commit_sha)
 
     @function
     @check
-    async def ci(self, commit_sha: str = "") -> str:
+    async def ci(self, commit_sha: str) -> str:
         """Run the canonical release gate sequentially to bound runner memory."""
-        await self._run_ci(self.source, commit_sha)
+        complete = await self._verified_source(self.source, commit_sha)
+        await self._run_product_gate(complete)
+        await self._dependency_audit(commit_sha).sync()
         return "EdgeProc Core canonical Dagger gate passed"
 
-    async def _run_ci(self, source: dagger.Directory, commit_sha: str = "") -> None:
-        complete = self._source_with_history(source, commit_sha)
-        tested = self._quality(complete).with_exec(["bash", "examples/run_loop.sh"])
-        await tested.with_exec(["uv", "run", "python", "benchmarks/benchmark.py"]).sync()
-        await self._dependency_audit(complete).sync()
-        await self._secret_scan(source, commit_sha).sync()
-        await self._workflow_security(complete).sync()
+    def _dependency_audit(self, commit_sha: str) -> dagger.Container:
+        return _python_package().dependency_audit(self.source, REPOSITORY, commit_sha)
 
-    def _source_with_history(
-        self, source: dagger.Directory, commit_sha: str = ""
-    ) -> dagger.Directory:
-        history = self._release_source(commit_sha) if commit_sha else self._main_source()
-        git_metadata = history.filter(include=[".git", ".git/**"])
-        return git_metadata.with_directory("/", source)
-
-    @function
+    # fmt: off
+    @function(cache="never")  # type: ignore[call-overload,untyped-decorator]  # SDK stub gap
     async def release_candidate(
-        self, tag: str, commit_sha: str, github_token: dagger.Secret
+        self, tag: str, commit_sha: str, github_token: dagger.Secret,
     ) -> dagger.Directory:
-        """Build one exact, Dagger-proven candidate without publishing it."""
-        self._require_sha(commit_sha)
-        await self._hosted(commit_sha, tag, github_token).sync()
-        source = self._release_source(commit_sha)
-        await self._identity(source, tag).sync()
-        await self._run_ci(source, commit_sha)
-        return self._candidate(source, tag).directory("/candidate")
-
-    def _identity(self, source: dagger.Directory, tag: str) -> dagger.Container:
-        command = [
-            "uv",
-            "run",
-            "python",
-            "scripts/release_contract.py",
-            "identity",
-            "--root",
-            ".",
-            "--tag",
-            tag,
-        ]
-        return self._python(source).with_exec(command)
-
-    def _candidate(self, source: dagger.Directory, tag: str) -> dagger.Container:
-        built = self._python(source).with_exec(
-            ["uv", "build", "--no-build-isolation", "--out-dir", "dist"]
+        """Build one exact, verified Foundation envelope without publishing it."""
+        complete = await self._verified_source(self.source, commit_sha)
+        await self._run_product_gate(complete)
+        run_id, attempt = await self._green_identity(github_token)
+        envelope = self._candidate_envelope(
+            self.source, github_token, commit_sha, run_id, attempt,
         )
-        built = built.with_exec(self._distribution_command(tag))
-        built = built.with_exec(self._checksum_command())
-        copy = "mkdir /candidate && cp -R dist /candidate/dist && cp SHA256SUMS /candidate/"
-        return built.with_exec(["sh", "-ceu", copy])
+        checked = self._require_requested_tag(envelope, tag)
+        return checked.directory("artifact")
+    # fmt: on
+
+    async def _run_product_gate(self, source: dagger.Directory) -> None:
+        tested = self._quality(source).with_exec(["bash", "examples/run_loop.sh"])
+        benchmark = tested.with_exec(["uv", "run", "python", "benchmarks/benchmark.py"])
+        await benchmark.sync()
 
     @staticmethod
-    def _release_source(commit_sha: str) -> dagger.Directory:
-        return dag.git(REPOSITORY_URL).commit(commit_sha).tree(depth=0, include_tags=True)
+    async def _verified_source(source: dagger.Directory, commit_sha: str) -> dagger.Directory:
+        foundation = _foundation()
+        bound = foundation.source(source, REPOSITORY, commit_sha)
+        await foundation.guard(source, REPOSITORY, commit_sha).sync()
+        return _with_history(bound, commit_sha)
 
     @staticmethod
-    def _main_source() -> dagger.Directory:
-        return dag.git(REPOSITORY_URL).branch("main").tree(depth=0, include_tags=True)
+    async def _green_identity(token: dagger.Secret) -> tuple[str, int]:
+        evidence = _foundation().green_main(token, REPOSITORY)
+        run_id = await evidence.workflow_run_id()
+        attempt = await evidence.run_attempt()
+        return run_id, attempt
 
     @staticmethod
-    def _distribution_command(tag: str) -> list[str]:
-        return [
-            "uv",
-            "run",
-            "python",
-            "scripts/release_contract.py",
-            "distributions",
-            "--root",
-            ".",
-            "--dist",
-            "dist",
-            "--tag",
-            tag,
-        ]
+    def _candidate_envelope(
+        source: dagger.Directory,
+        token: dagger.Secret,
+        commit_sha: str,
+        workflow_run_id: str,
+        run_attempt: int,
+    ) -> dagger.Directory:
+        candidate = _create_candidate(source, token, commit_sha, workflow_run_id, run_attempt)
+        return _verify_candidate(candidate.envelope(), commit_sha, workflow_run_id, run_attempt)
 
     @staticmethod
-    def _checksum_command() -> list[str]:
-        return [
-            "uv",
-            "run",
-            "python",
-            "scripts/release_contract.py",
-            "checksums",
-            "--dist",
-            "dist",
-            "--output",
-            "SHA256SUMS",
-        ]
-
-    def _hosted(self, commit: str, tag: str, token: dagger.Secret) -> dagger.Container:
-        container = self._python(self.source).with_secret_variable("GITHUB_TOKEN", token)
-        return container.with_exec(
-            ["sh", ".dagger/scripts/github-hosted.sh", commit, tag, REPOSITORY]
-        )
+    def _require_requested_tag(envelope: dagger.Directory, tag: str) -> dagger.Directory:
+        checked = dag.container().from_(PYTHON_IMAGE).with_directory("/candidate", envelope)
+        checked = checked.with_env_variable("EXPECTED_TAG", tag)
+        return checked.with_exec(["python", "-c", CANDIDATE_TAG_CHECK]).directory("/candidate")
 
     def _python(self, source: dagger.Directory) -> dagger.Container:
-        base = (
-            self._python_toolchain()
-            .with_directory("/src", source, owner="65532:65532")
-            .with_workdir("/src")
+        configured = self._configured_python(source)
+        prepared = self._prepared_python(configured)
+        return prepared.with_user("65532:65532").with_exec(
+            ["uv", "sync", "--frozen", "--all-extras"]
         )
-        base = base.with_env_variable("UV_PROJECT_ENVIRONMENT", "/opt/venv")
+
+    def _configured_python(self, source: dagger.Directory) -> dagger.Container:
+        base = self._python_toolchain().with_directory("/src", source, owner="65532:65532")
+        base = base.with_workdir("/src").with_env_variable("UV_PROJECT_ENVIRONMENT", "/opt/venv")
         base = base.with_env_variable("UV_CACHE_DIR", "/opt/uv-cache")
-        base = base.with_env_variable("UV_LINK_MODE", "copy")
-        base = base.with_env_variable("HOME", "/opt/home")
+        base = base.with_env_variable("UV_LINK_MODE", "copy").with_env_variable("HOME", "/opt/home")
         base = base.with_env_variable("XDG_CACHE_HOME", "/opt/model-cache")
-        base = base.with_env_variable("HF_HOME", "/opt/model-cache/huggingface")
+        return base.with_env_variable("HF_HOME", "/opt/model-cache/huggingface")
+
+    @staticmethod
+    def _prepared_python(base: dagger.Container) -> dagger.Container:
         base = base.with_env_variable("TMPDIR", "/opt/tmp")
-        base = base.with_mounted_cache(
-            "/opt/uv-cache", dag.cache_volume("edgeproc-core-uv-nonroot"), owner="65532:65532"
-        )
-        base = base.with_exec(
-            ["mkdir", "-p", "/opt/venv", "/opt/home", "/opt/model-cache", "/opt/tmp"]
-        )
-        base = base.with_exec(
-            [
-                "chown",
-                "-R",
-                "65532:65532",
-                "/opt/venv",
-                "/opt/home",
-                "/opt/model-cache",
-                "/opt/tmp",
-            ]
-        )
-        unprivileged = base.with_user("65532:65532")
-        return unprivileged.with_exec(["uv", "sync", "--frozen", "--all-extras"])
+        cache = dag.cache_volume("edgeproc-core-uv-nonroot")
+        base = base.with_mounted_cache("/opt/uv-cache", cache, owner="65532:65532")
+        base = base.with_exec(WORK_DIRECTORIES)
+        return base.with_exec(OWNERSHIP_COMMAND)
 
     def _quality(self, source: dagger.Directory) -> dagger.Container:
         return self._python(source).with_exec(["uv", "run", "poe", "gate"])
@@ -284,18 +221,3 @@ class EdgeprocCore:
         ]
         base = dag.container().from_(PYTHON_IMAGE).with_exec(install)
         return base.with_file("/usr/local/bin/uv", uv)
-
-    @staticmethod
-    def _actionlint() -> dagger.Container:
-        return dag.container().from_(ACTIONLINT_IMAGE).with_entrypoint([]).with_workdir("/repo")
-
-    @staticmethod
-    def _gitleaks() -> dagger.Container:
-        return dag.container().from_(GITLEAKS_IMAGE).with_entrypoint([])
-
-    @staticmethod
-    def _require_sha(commit: str) -> None:
-        valid_length = len(commit) == SHA_LENGTH
-        valid = valid_length and all(character in "0123456789abcdef" for character in commit)
-        if not valid:
-            raise ValueError("commit_sha must be a lowercase 40-character Git SHA")

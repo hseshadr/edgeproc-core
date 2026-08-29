@@ -63,6 +63,7 @@ def _assert_thin_dagger(job: Mapping[str, object], args: str) -> None:
     assert [_action(step) for step in steps] == [CHECKOUT_ACTION, DAGGER_ACTION]
     assert all(PINNED.fullmatch(str(step.get("uses"))) for step in steps)
     checkout = _mapping(steps[0].get("with"))
+    assert checkout.get("ref") == "${{ github.sha }}"
     invocation = _mapping(steps[1].get("with"))
     assert checkout.get("fetch-depth") == 0
     assert checkout.get("persist-credentials") is False
@@ -92,7 +93,10 @@ def test_should_route_pull_request_and_main_ci_only_through_dagger() -> None:
 
 def test_should_route_scheduled_dependency_audit_only_through_dagger() -> None:
     document = _workflow("security-audit.yml")
-    _assert_thin_dagger(_job(document, "dependency-audit"), "dependency-audit")
+    _assert_thin_dagger(
+        _job(document, "dependency-audit"),
+        "dependency-audit --commit-sha=${{ github.sha }}",
+    )
 
 
 def test_should_make_release_manual_and_dagger_proven() -> None:
@@ -103,12 +107,16 @@ def test_should_make_release_manual_and_dagger_proven() -> None:
     assert set(triggers) == {"workflow_dispatch"}
     assert [_action(step) for step in steps] == [CHECKOUT_ACTION, DAGGER_ACTION, UPLOAD_ACTION]
     assert all(PINNED.fullmatch(str(step.get("uses"))) for step in steps)
+    checkout = _mapping(steps[0].get("with"))
+    assert "ref" not in checkout
     invocation = _mapping(steps[1].get("with"))
     assert invocation.get("verb") == "call"
     assert str(invocation.get("args", "")).startswith("release-candidate ")
     assert "--commit-sha=${{ github.sha }}" in str(invocation.get("args"))
     assert "--github-token=env:GITHUB_TOKEN" in str(invocation.get("args"))
     assert "export --path=release" in str(invocation.get("args"))
+    upload = _mapping(steps[2].get("with"))
+    assert upload.get("name") == "edgeproc-core-${{ github.sha }}"
 
 
 def test_should_keep_oidc_publisher_source_free_and_shell_free() -> None:
@@ -131,6 +139,7 @@ def test_should_keep_oidc_publisher_source_free_and_shell_free() -> None:
     assert [_action(step) for step in steps] == [DOWNLOAD_ACTION, PUBLISH_ACTION]
     assert all("run" not in step for step in steps)
     download = _mapping(steps[0].get("with"))
+    assert download.get("name") == "edgeproc-core-${{ github.event.workflow_run.head_sha }}"
     assert download.get("run-id") == "${{ github.event.workflow_run.id }}"
     assert download.get("github-token") == "${{ github.token }}"
     settings = _mapping(steps[1].get("with"))
