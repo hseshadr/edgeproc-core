@@ -240,6 +240,10 @@ cd edgeproc-core
 uv sync
 ```
 
+## Architecture
+
+Explore the [interactive runtime map](docs/architecture/index.html).
+
 ## Under the hood (for developers)
 
 - **Two Protocols decouple everything.** The partitioning strategy is separated
