@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "EdgeProc Core: Tenant-Safe Vector Routing",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "viewBox": [1360, 720],
+    "repository": {
+      "url": "https://github.com/hseshadr/edgeproc-core",
+      "revision": "8f7c9c18d0794e9d93a40d46001abb5ebcb7f566"
+    },
+    "views": [
+      {"id": "query-path", "label": "Scoped query", "focus": ["caller", "manager", "strategy", "contract", "index", "results"], "note": "Follow an owner-scoped vector query through routing, backend filtering, and top-k merge."},
+      {"id": "strategy-seam", "label": "Strategy seam", "focus": ["manager", "strategy", "contract"], "note": "Swap global, bucketed, or hot/cold routing without coupling the manager to a search engine."},
+      {"id": "backend-proof", "label": "Backend proof", "focus": ["contract", "index", "conformance"], "note": "Grade a backend's scoped read, delete, and statistics behavior before adopting it."}
+    ]
+  },
+  "components": [
+    {"id": "caller", "type": "external", "label": "Vectors + Owner Key", "sublabel": "tenant / user / org scope", "pos": [70, 100], "size": [190, 76], "sources": [{"path": "README.md", "line": 106, "end_line": 124, "label": "public usage"}]},
+    {"id": "manager", "type": "backend", "label": "IndexManager", "sublabel": "stamp, route, merge", "pos": [330, 100], "size": [190, 76], "sources": [{"path": "edgeproc_core/vector_mgmt/core/index_manager.py", "line": 23, "end_line": 51, "label": "insert coordination"}, {"path": "edgeproc_core/vector_mgmt/core/index_manager.py", "line": 84, "end_line": 110, "label": "scoped search"}]},
+    {"id": "strategy", "type": "backend", "label": "Partition Strategy", "sublabel": "global / bucket / hot-cold", "pos": [590, 100], "size": [190, 76], "sources": [{"path": "edgeproc_core/vector_mgmt/partitioning/strategies.py", "line": 22, "end_line": 55, "label": "strategy contract"}, {"path": "edgeproc_core/vector_mgmt/partitioning/strategies.py", "line": 98, "end_line": 162, "label": "stable bucket routing"}, {"path": "edgeproc_core/vector_mgmt/partitioning/strategies.py", "line": 169, "end_line": 225, "label": "hot-cold routing"}]},
+    {"id": "contract", "type": "security", "label": "VectorIndex Contract", "sublabel": "filters are ANDed", "pos": [590, 500], "size": [190, 76], "sources": [{"path": "edgeproc_core/vector_mgmt/core/types.py", "line": 82, "end_line": 139, "label": "backend protocol"}]},
+    {"id": "index", "type": "database", "label": "Physical Vector Index", "sublabel": "FAISS / pgvector / hnswlib", "pos": [860, 500], "size": [190, 76], "sources": [{"path": "edgeproc_core/vector_mgmt/testing.py", "line": 29, "end_line": 67, "label": "reference backend"}, {"path": "README.md", "line": 127, "end_line": 131, "label": "production seam"}]},
+    {"id": "results", "type": "external", "label": "Owner-Scoped Top-k", "sublabel": "deduped by best distance", "pos": [1120, 500], "size": [190, 76], "sources": [{"path": "edgeproc_core/vector_mgmt/core/index_manager.py", "line": 179, "end_line": 186, "label": "top-k merge"}]},
+    {"id": "conformance", "type": "security", "label": "Conformance Suite", "sublabel": "forced collision checks", "pos": [860, 170], "size": [190, 76], "sources": [{"path": "edgeproc_core/vector_mgmt/conformance.py", "line": 354, "end_line": 378, "label": "property checks"}, {"path": "edgeproc_core/vector_mgmt/conformance.py", "line": 405, "end_line": 429, "label": "public grader"}]}
+  ],
+  "connections": [
+    {"id": "submit", "from": "caller", "to": "manager", "label": "submit", "variant": "emphasis"},
+    {"id": "route", "from": "manager", "to": "strategy", "label": "select", "variant": "emphasis"},
+    {"id": "resolve", "from": "strategy", "to": "contract", "label": "resolve index", "variant": "emphasis", "labelAt": [685, 190]},
+    {"id": "search", "from": "contract", "to": "index", "label": "filtered search", "variant": "security"},
+    {"id": "merge", "from": "index", "to": "results", "label": "return hits", "variant": "emphasis"},
+    {"id": "grade", "from": "conformance", "to": "index", "label": "grade isolation", "variant": "security", "labelAt": [955, 260]}
+  ],
+  "cards": [
+    {"dot": "rose", "title": "Isolation invariant", "items": ["Selecting a bucket is not authorization", "The owner key is applied inside every shared index"]},
+    {"dot": "cyan", "title": "Lego seam", "items": ["Strategies decide where vectors live", "The protocol lets callers bring any conforming backend"]},
+    {"dot": "emerald", "title": "Operational scope", "items": ["Reads, deletes, and stats preserve the same scope", "Physical rebuilds remain backend-wide maintenance"]}
+  ]
+}
