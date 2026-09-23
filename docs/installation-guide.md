@@ -34,10 +34,10 @@ dependency:
 
 ```bash
 # uv
-uv pip install "edgeproc-core==0.4.2"
+uv pip install "edgeproc-core==0.4.3"
 
 # pip
-python -m pip install "edgeproc-core==0.4.2"
+python -m pip install "edgeproc-core==0.4.3"
 ```
 
 For `pyproject.toml`:
@@ -46,14 +46,14 @@ For `pyproject.toml`:
 [project]
 requires-python = ">=3.13"
 dependencies = [
-  "edgeproc-core>=0.4.2",
+  "edgeproc-core>=0.4.3",
 ]
 ```
 
 For `requirements.txt`:
 
 ```text
-edgeproc-core==0.4.2
+edgeproc-core==0.4.3
 ```
 
 ### Installing from source instead
@@ -63,10 +63,10 @@ cannot repoint it, so it is exactly as immutable as a release:
 
 ```bash
 # uv
-uv pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@f8c8af7f3868effe603d78f72b7873b11dce2572"
+uv pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@7b3ab4de97441ae4be64c082ae432d914d65c240"
 
 # pip
-python -m pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@f8c8af7f3868effe603d78f72b7873b11dce2572"
+python -m pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@7b3ab4de97441ae4be64c082ae432d914d65c240"
 ```
 
 ### Why do source pins use a commit and not a tag?
@@ -77,8 +77,10 @@ succeeds but gives you the old module name, and the verification snippet below
 fails with `ModuleNotFoundError: No module named 'edgeproc_core'`. Pin a commit
 at or after the rename, or install from PyPI as shown above.
 
-Install `0.4.2` or newer. `0.4.1` is superseded because its immutable installation
-guidance selected an unsupported source snapshot. `0.2.1` and `0.2.2` carry a cross-tenant delete defect —
+Install `0.4.3` or newer. `0.4.2` and earlier let a Problem Details param named `status`,
+`detail`, or `instance` reach the wire as that core member, and let `__proto__` keys,
+`str`-subclass keys, and non-scalar or non-finite values through as extension members. `0.4.1` is superseded because its
+immutable installation guidance selected an unsupported source snapshot. `0.2.1` and `0.2.2` carry a cross-tenant delete defect —
 a `tenant_a`-scoped `delete()` destroyed `tenant_b`'s rows — fixed in `0.3.0`, and
 `0.3.0` itself ships without the `conformance` module its README documents.
 
@@ -133,7 +135,7 @@ For the currently documented pin:
 
 ```bash
 uv pip install --upgrade --force-reinstall \
-  "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@f8c8af7f3868effe603d78f72b7873b11dce2572"
+  "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@7b3ab4de97441ae4be64c082ae432d914d65c240"
 ```
 
 ## Troubleshooting
@@ -151,11 +153,13 @@ source .venv/bin/activate
 
 ### Commit not found
 
-Confirm the pinned commit exists on the public repository:
+Confirm the pinned commit exists on the public repository. `git ls-remote` lists only
+branch and tag tips, so it cannot find a commit that sits behind one; fetch the commit
+itself instead (inside any clone of the repository):
 
 ```bash
-git ls-remote https://github.com/hseshadr/edgeproc-core.git | \
-  grep f8c8af7f3868effe603d78f72b7873b11dce2572
+git fetch origin 7b3ab4de97441ae4be64c082ae432d914d65c240 && \
+  git cat-file -e '7b3ab4de97441ae4be64c082ae432d914d65c240^{commit}'
 ```
 
 ### `ModuleNotFoundError: No module named 'edgeproc_core'`
@@ -175,7 +179,7 @@ Prefer an explicit forced reinstall over clearing the entire shared `uv` cache:
 
 ```bash
 uv pip install --upgrade --force-reinstall \
-  "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@f8c8af7f3868effe603d78f72b7873b11dce2572"
+  "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@7b3ab4de97441ae4be64c082ae432d914d65c240"
 ```
 
 The supported release line and vulnerability-reporting process are documented

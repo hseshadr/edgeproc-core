@@ -63,8 +63,8 @@ bash examples/run_loop.sh
 implement `VectorIndex` against FAISS, pgvector, hnswlib, or another store and enforce
 authorization in that store too.
 
-**Artifact status:** This source and packaged README describe v0.4.2, alpha.
-Install 0.4.2; it supersedes 0.4.1's immutable installation guidance.
+**Artifact status:** This source and packaged README describe v0.4.3, alpha.
+Install 0.4.3; it carries the Problem Details wire-safety fixes.
 
 The package is published on
 [PyPI](https://pypi.org/project/edgeproc-core/), so `pip install edgeproc-core`
@@ -72,9 +72,9 @@ is the supported install. See [Installation](#installation).
 
 ## Measured evidence
 
-The hosted CI run and full local gate pass at **99.28% coverage measured with branches enabled**,
+The hosted CI run and full local gate pass at **99.31% coverage measured with branches enabled**,
 with strict mypy, lint, and formatting. The gate runs `--cov-branch` and
-enforces a ≥90% branch coverage floor. Split into its two parts: 99.10% of statements
+enforces a ≥90% branch coverage floor. Split into its two parts: 99.13% of statements
 and 100.00% of branches are covered. A gate step re-derives all three figures from
 `coverage.xml` so this paragraph cannot quietly drift.
 
@@ -208,27 +208,27 @@ uv pip install edgeproc-core
 
 In your `pyproject.toml`:
 ```toml
-dependencies = ["edgeproc-core==0.4.2"]
+dependencies = ["edgeproc-core==0.4.3"]
 ```
 
 Verify it worked:
 ```bash
 python -c "import edgeproc_core; print(edgeproc_core.__version__)"
-# 0.4.2
+# 0.4.3
 ```
 
 Prefer to build from source? Pin a full commit SHA — Git cannot repoint it, so
 it is exactly as immutable as a release:
 
 ```bash
-uv pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@f8c8af7f3868effe603d78f72b7873b11dce2572"
+uv pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@7b3ab4de97441ae4be64c082ae432d914d65c240"
 ```
 
 > **Why do source pins use a commit and not a tag?** Tags `v0.2.0` and older
 > were cut before the import package was renamed to `edgeproc_core`, so they
 > ship the old `shared_libs_python` module and every example here would raise
 > `ModuleNotFoundError`. Pin a commit at or after the rename (like the one
-> above), or install from PyPI as shown first. `0.4.2` contains the strengthened
+> above), or install from PyPI as shown first. `0.4.3` contains the strengthened
 > source-install contract. `0.2.1` and `0.2.2` carry a cross-tenant
 > delete defect fixed in `0.3.0`, and `0.3.0` ships without the `conformance`
 > module its README documents.
@@ -335,8 +335,9 @@ like `net.unreachable` — and then always speak in codes:
 - `describe(code)` renders human text, through your own i18n if you have one
 - `to_problem_details(code).to_dict()` produces the [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457)
   Problem Details JSON an API returns. Params become public extension members, so never
-  pass secrets; params named `type`, `title`, `status`, `detail`, or `instance` are
-  reserved and dropped from the body
+  pass secrets. Only params with a plain `str` key and a `str`, `int`, or finite `float`
+  value reach the body; params named `type`, `title`, `status`, `detail`, `instance`,
+  `__proto__`, `constructor`, `prototype`, or `toJSON` are reserved and dropped
 
 ```python
 from edgeproc_core.errors import define_errors, starter_pack

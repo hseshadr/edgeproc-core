@@ -156,9 +156,12 @@ class Registry:
     ) -> ProblemDetails:
         """Serialize a code to the RFC 9457 Problem Details shape.
 
-        Params become public extension members, except the reserved ``type``,
-        ``title``, ``status``, ``detail``, and ``instance``, which are dropped
-        (they still reach :meth:`describe` for title interpolation)."""
+        Params become public extension members, except that reserved names
+        (``type``, ``title``, ``status``, ``detail``, ``instance``, ``__proto__``,
+        ``constructor``, ``prototype``, ``toJSON``), non-``str`` or ``str``-subclass
+        keys, and values that are not a ``str``, ``int``, or finite ``float``
+        (``bool`` included) are dropped. Every param still reaches
+        :meth:`describe` for title interpolation."""
         values: Params = params if params is not None else {}
         entry = self._catalog.get(code)
         return ProblemDetails(

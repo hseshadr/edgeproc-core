@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+import json
+import math
+from typing import Any
+
+import pytest
+
 from edgeproc_core.errors import (
     CatalogEntry,
     Category,
@@ -174,4 +180,120 @@ def test_should_drop_reserved_names_from_directly_constructed_members() -> None:
     pd = ProblemDetails(type="app.x", title="X", members={**_RESERVED_PARAMS, "n": 1})
     # When flattened
     # Then reserved names never leak from members into the wire form
+    assert pd.to_dict() == {"n": 1, "type": "app.x", "title": "X"}
+
+
+#: Keys a JavaScript consumer treats as special. ``__proto__`` re-parents an object
+#: built by assignment or ``Object.assign``, ``constructor``/``prototype`` feed
+#: prototype-pollution gadgets, and ``toJSON`` hijacks ``JSON.stringify``. Mirrors
+#: the key denylist of ``@edgeproc/errors``.
+_PROTOTYPE_KEYS = ("__proto__", "constructor", "prototype", "toJSON")
+
+
+def test_should_drop_a_proto_param_parsed_from_untrusted_json() -> None:
+    # Given the reproduced payload: untrusted JSON carrying a __proto__ member
+    params = json.loads('{"__proto__":{"isAdmin":true}}')
+    # When serialized to the wire form
+    wire = registry.to_problem_details("internal.unknown", params).to_dict()
+    # Then __proto__ never reaches the wire
+    assert "__proto__" not in wire
+    assert "__proto__" not in json.dumps(wire)
+
+
+@pytest.mark.parametrize("key", _PROTOTYPE_KEYS)
+def test_should_never_emit_a_prototype_sensitive_key_even_with_a_scalar_value(key: str) -> None:
+    # Given a prototype-sensitive param name carrying an otherwise valid value
+    pd = registry.to_problem_details("internal.unknown", {key: "x", "n": 1})
+    # When serialized
+    # Then only the ordinary param survives, in members and on the wire
+    assert pd.members == {"n": 1}
+    assert key not in pd.to_dict()
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"isAdmin": True},
+        ["a", "b"],
+        None,
+        True,
+        False,
+        b"bytes",
+        math.nan,
+        math.inf,
+        -math.inf,
+        object(),
+    ],
+    ids=["dict", "list", "none", "true", "false", "bytes", "nan", "inf", "-inf", "object"],
+)
+def test_should_drop_a_param_whose_value_is_not_a_string_or_finite_number(value: object) -> None:
+    # Given a param whose value is not a string or a finite number
+    params: dict[str, Any] = {"bad": value, "n": 1}
+    # When serialized
+    pd = registry.to_problem_details("internal.unknown", params)
+    # Then it is dropped, and the wire stays strict-JSON serializable
+    assert pd.members == {"n": 1}
+    assert "bad" not in json.dumps(pd.to_dict(), allow_nan=False)
+
+
+def test_should_keep_strings_ints_and_finite_floats_as_extension_members() -> None:
+    # Given one param of each wire-safe scalar type
+    pd = registry.to_problem_details("internal.unknown", {"s": "USD", "i": 0, "f": 1.5})
+    # When serialized
+    # Then all three ride along unchanged
+    assert pd.members == {"s": "USD", "i": 0, "f": 1.5}
+
+
+class _EvasiveKey(str):
+    """A key that spells a reserved name but defeats hash/equality membership tests."""
+
+    __slots__ = ()
+
+    def __hash__(self) -> int:
+        return id(self)
+
+    def __eq__(self, other: object) -> bool:
+        return self is other
+
+
+def test_should_drop_a_str_subclass_key_that_evades_the_reserved_name_check() -> None:
+    # Given the reproduced bypass: str-subclass keys spelling reserved members
+    params: dict[Any, Any] = {_EvasiveKey("status"): 200, _EvasiveKey("type"): "forged", "n": 1}
+    # When an unregistered code is serialized
+    wire = registry.to_problem_details("internal.unknown", params).to_dict()
+    encoded = json.dumps(wire)
+    # Then neither a forged status nor a duplicate type reaches the wire
+    assert '"status"' not in encoded
+    assert encoded.count('"type"') == 1
+    assert wire == {
+        "n": 1,
+        "type": "internal.unknown",
+        "title": registry.describe("internal.unknown"),
+    }
+
+
+class _TaggedStr(str):
+    __slots__ = ()
+
+
+class _Real(float):
+    __slots__ = ()
+
+
+def test_should_emit_subclassed_scalar_values_as_their_plain_builtin_type() -> None:
+    # Given scalar values that are subclasses of str, int, and float
+    params: dict[str, Any] = {"s": _TaggedStr("USD"), "e": Category.NETWORK, "f": _Real(2.5)}
+    # When serialized
+    members = registry.to_problem_details("internal.unknown", params).members
+    # Then the wire carries exact builtins with the same value
+    assert members == {"s": "USD", "e": "network", "f": 2.5}
+    assert [type(value) for value in members.values()] == [str, str, float]
+
+
+def test_should_filter_directly_constructed_members_the_same_way() -> None:
+    # Given a hand-built Problem Details carrying unsafe keys and values
+    members: dict[Any, Any] = {"__proto__": "x", "obj": {"a": 1}, "nan": math.nan, "n": 1}
+    pd = ProblemDetails(type="app.x", title="X", members=members)
+    # When flattened
+    # Then only the safe member reaches the wire
     assert pd.to_dict() == {"n": 1, "type": "app.x", "title": "X"}
