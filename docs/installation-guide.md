@@ -78,7 +78,8 @@ fails with `ModuleNotFoundError: No module named 'edgeproc_core'`. Pin a commit
 at or after the rename, or install from PyPI as shown above.
 
 Install `0.4.3` or newer. `0.4.2` and earlier let a Problem Details param named `status`,
-`detail`, or `instance` reach the wire as that core member. `0.4.1` is superseded because its
+`detail`, or `instance` reach the wire as that core member, and let `__proto__` keys,
+`str`-subclass keys, and non-scalar or non-finite values through as extension members. `0.4.1` is superseded because its
 immutable installation guidance selected an unsupported source snapshot. `0.2.1` and `0.2.2` carry a cross-tenant delete defect —
 a `tenant_a`-scoped `delete()` destroyed `tenant_b`'s rows — fixed in `0.3.0`, and
 `0.3.0` itself ships without the `conformance` module its README documents.
@@ -152,11 +153,13 @@ source .venv/bin/activate
 
 ### Commit not found
 
-Confirm the pinned commit exists on the public repository:
+Confirm the pinned commit exists on the public repository. `git ls-remote` lists only
+branch and tag tips, so it cannot find a commit that sits behind one; fetch the commit
+itself instead (inside any clone of the repository):
 
 ```bash
-git ls-remote https://github.com/hseshadr/edgeproc-core.git | \
-  grep 7449460cc62349b5c70c8f7287680495fb8dfdbf
+git fetch origin 7449460cc62349b5c70c8f7287680495fb8dfdbf && \
+  git cat-file -e '7449460cc62349b5c70c8f7287680495fb8dfdbf^{commit}'
 ```
 
 ### `ModuleNotFoundError: No module named 'edgeproc_core'`

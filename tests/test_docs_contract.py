@@ -634,3 +634,20 @@ def test_operations_describes_the_exact_source_free_release_boundary() -> None:
     )
 
     assert all(claim in operations for claim in required)
+
+
+def test_commit_not_found_check_can_actually_find_the_pinned_commit() -> None:
+    """The troubleshooting check must be able to succeed for the pin it names.
+
+    It used to pipe `git ls-remote` into `grep <sha>`. `ls-remote` lists only branch
+    and tag tips, so for a pin that sits behind a tip the check could never match and
+    told every reader their valid pin did not exist.
+    """
+    guide = _read("docs/installation-guide.md")
+    pins = set(re.findall(rf"{re.escape(REPO_SLUG)}\.git@([0-9a-f]{{40}})", guide))
+
+    assert pins, "the installation guide documents no full-SHA source pin"
+    assert not re.search(r"^\s*git ls-remote", guide, flags=re.M)
+    for pin in pins:
+        assert f"git fetch origin {pin}" in guide
+        assert f"git cat-file -e '{pin}^{{commit}}'" in guide

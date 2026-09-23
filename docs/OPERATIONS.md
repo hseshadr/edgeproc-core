@@ -83,7 +83,9 @@ architecture guide labels those values as consumer targets rather than shipped c
 ## Release proof
 
 A release requires a fresh manual `workflow_dispatch`; pushing a tag never publishes by
-itself. Dagger first requires that the requested commit is the exact current `main` commit
+itself. The dispatched tag must be a plain `vX.Y.Z`: the workflow checks that in its own step
+and hands the tag to Dagger only as a quoted environment variable, never as expression text
+pasted into a shell. Dagger first requires that the requested commit is the exact current `main` commit
 with a green hosted `Dagger` check. It fetches that immutable commit itself and verifies
 exact tag, package-version, and top-changelog identity. Dagger then runs the full gate, the
 real example, the benchmark, the locked dependency audit, and secret scans over both the

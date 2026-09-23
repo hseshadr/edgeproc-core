@@ -9,8 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.3] — 2026-09-23
 
-This patch release ships a Problem Details security fix and moves every documented
-immutable source pin onto a commit that contains it. The partitioning code is unchanged.
+This patch release ships Problem Details wire-safety fixes, closes a shell-injection path
+in the manual release workflow, and moves every documented immutable source pin onto a
+commit that contains them. The partitioning code is unchanged.
 
 ### Security
 - **`to_problem_details` no longer lets params supply reserved RFC 9457 members.**
@@ -22,12 +23,37 @@ immutable source pin onto a commit that contains it. The partitioning code is un
   all other params remain public extension members, as now documented. Mirrors the same
   fix in `@edgeproc/errors`. Python dict lookups were already own-key only, so the TS
   package's `Object.prototype` lookup bug has no counterpart here.
+- **Problem Details extension members are now restricted to wire-safe keys and values.**
+  `to_problem_details(code, params).to_dict()` (and `ProblemDetails.to_dict()` on
+  hand-built members) copied every param through, so untrusted JSON such as
+  `{"__proto__": {"isAdmin": true}}` put a `__proto__` member on the wire, and nested
+  objects, lists, `None`, booleans, `NaN`, and infinities passed through too. A `str`
+  subclass key that overrides `__hash__`/`__eq__` also slipped past the reserved-name
+  check: for an unregistered code it produced `"status": 200` and a duplicate `"type"`.
+  Members now keep only exact-`str` keys and `str`, `int`, or finite `float` values
+  (`bool` excluded; subclasses are narrowed to the plain builtin), and `__proto__`,
+  `constructor`, `prototype`, and `toJSON` join the reserved names. Every param still
+  reaches `describe` for title interpolation. Mirrors the same fix in `@edgeproc/errors`.
+- **The manual release workflow no longer pastes the dispatched tag into shell text.**
+  `release-candidate.yml` passed `--tag=${{ inputs.tag }}` in the `args` of
+  `dagger/dagger-for-github`, which interpolates `args` into bash unquoted, so a crafted
+  `workflow_dispatch` tag could run commands on the runner and upload its own wheel for
+  `publish.yml` to publish. The tag now reaches shell only as the `TAG` environment
+  variable, a separate step rejects anything but a plain `vX.Y.Z` before any other shell
+  runs, the pinned action only installs the Dagger CLI, and the release call runs in a
+  `run:` step with every value quoted. A new workflow test fails if any workflow pastes a
+  `${{ inputs.* }}`, `${{ github.event.* }}`, or `${{ github.head_ref }}` expression into
+  a `run:` body or a Dagger action input.
 
 ### Fixed
-- **The documented immutable source pin now contains the Problem Details fix.** The 0.4.2
-  pin predated it. Every README and installation-guide source command now names the 0.4.3
-  release-preparation commit, which the gate builds, installs, version-checks as 0.4.3, and
+- **The documented immutable source pin now contains the 0.4.3 security fixes.** The 0.4.2
+  pin predated them. Every README and installation-guide source command now names the
+  0.4.3 security-fix commit, which the gate builds, installs, version-checks as 0.4.3, and
   isolation-checks. `SECURITY.md` marks releases before 0.4.3 superseded.
+- **The installation guide's "Commit not found" check can now succeed.** It piped
+  `git ls-remote` into `grep <sha>`, but `ls-remote` lists only branch and tag tips, so it
+  never matched a pin behind a tip. It now runs `git fetch origin <sha>` followed by
+  `git cat-file -e <sha>^{commit}`, and a docs-contract test keeps it that way.
 
 ### Changed
 - **Releases are built and verified by Dagger, and publication needs a manual dispatch.**

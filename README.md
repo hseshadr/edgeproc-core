@@ -64,7 +64,7 @@ implement `VectorIndex` against FAISS, pgvector, hnswlib, or another store and e
 authorization in that store too.
 
 **Artifact status:** This source and packaged README describe v0.4.3, alpha.
-Install 0.4.3; it carries the Problem Details reserved-member fix.
+Install 0.4.3; it carries the Problem Details wire-safety fixes.
 
 The package is published on
 [PyPI](https://pypi.org/project/edgeproc-core/), so `pip install edgeproc-core`
@@ -72,9 +72,9 @@ is the supported install. See [Installation](#installation).
 
 ## Measured evidence
 
-The hosted CI run and full local gate pass at **99.28% coverage measured with branches enabled**,
+The hosted CI run and full local gate pass at **99.31% coverage measured with branches enabled**,
 with strict mypy, lint, and formatting. The gate runs `--cov-branch` and
-enforces a ≥90% branch coverage floor. Split into its two parts: 99.10% of statements
+enforces a ≥90% branch coverage floor. Split into its two parts: 99.13% of statements
 and 100.00% of branches are covered. A gate step re-derives all three figures from
 `coverage.xml` so this paragraph cannot quietly drift.
 
@@ -335,8 +335,9 @@ like `net.unreachable` — and then always speak in codes:
 - `describe(code)` renders human text, through your own i18n if you have one
 - `to_problem_details(code).to_dict()` produces the [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457)
   Problem Details JSON an API returns. Params become public extension members, so never
-  pass secrets; params named `type`, `title`, `status`, `detail`, or `instance` are
-  reserved and dropped from the body
+  pass secrets. Only params with a plain `str` key and a `str`, `int`, or finite `float`
+  value reach the body; params named `type`, `title`, `status`, `detail`, `instance`,
+  `__proto__`, `constructor`, `prototype`, or `toJSON` are reserved and dropped
 
 ```python
 from edgeproc_core.errors import define_errors, starter_pack
