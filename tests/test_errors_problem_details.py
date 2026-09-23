@@ -122,3 +122,56 @@ def test_should_carry_every_field_including_instance_and_detail_into_the_wire_fo
         "instance": "/req/1",
         "detail": "boom",
     }
+
+
+_RESERVED_PARAMS: dict[str, str | int] = {
+    "type": "https://attacker.example/forged",
+    "title": "Forged title",
+    "status": 200,
+    "detail": "Forged detail",
+    "instance": "/forged",
+}
+
+
+def test_should_never_let_params_supply_reserved_rfc9457_members() -> None:
+    # Given params that name every reserved RFC 9457 member plus one extension
+    pd = registry.to_problem_details("ai.provider.out_of_credits", {**_RESERVED_PARAMS, "n": 0})
+    # When serialized
+    # Then reserved names are dropped from members and the wire keeps registry values
+    assert pd.members == {"n": 0}
+    assert pd.to_dict() == {
+        "n": 0,
+        "type": "ai.provider.out_of_credits",
+        "title": registry.describe("ai.provider.out_of_credits"),
+        "status": 402,
+    }
+
+
+def test_should_not_let_a_param_fill_a_reserved_member_the_registry_leaves_unset() -> None:
+    # Given a code with no registered status and reserved-named params
+    pd = registry.to_problem_details("internal.unknown", _RESERVED_PARAMS)
+    # When serialized
+    # Then status, detail, and instance stay absent rather than coming from params
+    assert pd.to_dict() == {
+        "type": "internal.unknown",
+        "title": registry.describe("internal.unknown"),
+    }
+
+
+def test_should_keep_a_reserved_named_param_available_to_the_title_template() -> None:
+    # Given a template that interpolates a param named like a reserved member
+    reg = define_errors(
+        {"app.detail": CatalogEntry(category=Category.INTERNAL, en="Failed: {detail}")}
+    )
+    # When serialized
+    pd = reg.to_problem_details("app.detail", {"detail": "disk full"})
+    # Then the title uses it, but it never becomes the detail member
+    assert pd.to_dict() == {"type": "app.detail", "title": "Failed: disk full"}
+
+
+def test_should_drop_reserved_names_from_directly_constructed_members() -> None:
+    # Given a hand-built Problem Details whose members name reserved fields
+    pd = ProblemDetails(type="app.x", title="X", members={**_RESERVED_PARAMS, "n": 1})
+    # When flattened
+    # Then reserved names never leak from members into the wire form
+    assert pd.to_dict() == {"n": 1, "type": "app.x", "title": "X"}

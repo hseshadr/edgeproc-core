@@ -21,6 +21,7 @@ from edgeproc_core.errors.types import (
     Params,
     ProblemDetails,
     TFunction,
+    _extension_members,
 )
 
 _INTERNAL_UNKNOWN: Final[str] = "internal.unknown"
@@ -153,7 +154,11 @@ class Registry:
         title: str | None = None,
         instance: str | None = None,
     ) -> ProblemDetails:
-        """Serialize a code to the RFC 9457 Problem Details shape."""
+        """Serialize a code to the RFC 9457 Problem Details shape.
+
+        Params become public extension members, except the reserved ``type``,
+        ``title``, ``status``, ``detail``, and ``instance``, which are dropped
+        (they still reach :meth:`describe` for title interpolation)."""
         values: Params = params if params is not None else {}
         entry = self._catalog.get(code)
         return ProblemDetails(
@@ -161,7 +166,7 @@ class Registry:
             title=title if title is not None else self.describe(code, values),
             status=status if status is not None else _first_status(entry),
             instance=instance,
-            members=dict(values),
+            members=_extension_members(values),
         )
 
     def create(self, code: ErrorCode, params: Params | None = None) -> CanonicalError:
