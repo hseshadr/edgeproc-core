@@ -221,7 +221,7 @@ Prefer to build from source? Pin a full commit SHA — Git cannot repoint it, so
 it is exactly as immutable as a release:
 
 ```bash
-uv pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@7449460cc62349b5c70c8f7287680495fb8dfdbf"
+uv pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@7b3ab4de97441ae4be64c082ae432d914d65c240"
 ```
 
 > **Why do source pins use a commit and not a tag?** Tags `v0.2.0` and older

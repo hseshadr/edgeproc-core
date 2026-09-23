@@ -63,10 +63,10 @@ cannot repoint it, so it is exactly as immutable as a release:
 
 ```bash
 # uv
-uv pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@7449460cc62349b5c70c8f7287680495fb8dfdbf"
+uv pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@7b3ab4de97441ae4be64c082ae432d914d65c240"
 
 # pip
-python -m pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@7449460cc62349b5c70c8f7287680495fb8dfdbf"
+python -m pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@7b3ab4de97441ae4be64c082ae432d914d65c240"
 ```
 
 ### Why do source pins use a commit and not a tag?
@@ -135,7 +135,7 @@ For the currently documented pin:
 
 ```bash
 uv pip install --upgrade --force-reinstall \
-  "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@7449460cc62349b5c70c8f7287680495fb8dfdbf"
+  "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@7b3ab4de97441ae4be64c082ae432d914d65c240"
 ```
 
 ## Troubleshooting
@@ -158,8 +158,8 @@ branch and tag tips, so it cannot find a commit that sits behind one; fetch the 
 itself instead (inside any clone of the repository):
 
 ```bash
-git fetch origin 7449460cc62349b5c70c8f7287680495fb8dfdbf && \
-  git cat-file -e '7449460cc62349b5c70c8f7287680495fb8dfdbf^{commit}'
+git fetch origin 7b3ab4de97441ae4be64c082ae432d914d65c240 && \
+  git cat-file -e '7b3ab4de97441ae4be64c082ae432d914d65c240^{commit}'
 ```
 
 ### `ModuleNotFoundError: No module named 'edgeproc_core'`
@@ -179,7 +179,7 @@ Prefer an explicit forced reinstall over clearing the entire shared `uv` cache:
 
 ```bash
 uv pip install --upgrade --force-reinstall \
-  "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@7449460cc62349b5c70c8f7287680495fb8dfdbf"
+  "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@7b3ab4de97441ae4be64c082ae432d914d65c240"
 ```
 
 The supported release line and vulnerability-reporting process are documented
