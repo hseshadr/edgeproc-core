@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **`to_problem_details` no longer lets params supply reserved RFC 9457 members.**
+  Params were copied into `ProblemDetails.members` and spread first by `to_dict()`, so a
+  param named `status`, `detail`, or `instance` reached the wire as that core member
+  whenever the registry left it unset (`type` and `title` were already overwritten).
+  Params named `type`, `title`, `status`, `detail`, or `instance` are now dropped from
+  `members` and from the wire form (they still reach `describe` for title interpolation);
+  all other params remain public extension members, as now documented. Mirrors the same
+  fix in `@edgeproc/errors`. Python dict lookups were already own-key only, so the TS
+  package's `Object.prototype` lookup bug has no counterpart here.
+
 ## [0.4.2] — 2026-08-13
 
 This corrective patch supersedes 0.4.1's immutable installation guidance. The runtime
