@@ -58,9 +58,26 @@ class CatalogEntry:
 type Catalog = Mapping[str, CatalogEntry]
 
 
+#: RFC 9457 members the registry owns. Params never supply them: ``type`` and
+#: ``title`` come from the catalog, ``status`` and ``instance`` from keyword
+#: options, and ``detail`` is set only explicitly. Mirrors the TS package.
+_RESERVED_PROBLEM_MEMBERS: frozenset[str] = frozenset(
+    {"type", "title", "status", "detail", "instance"}
+)
+
+
+def _extension_members(params: Mapping[str, ParamValue]) -> dict[str, ParamValue]:
+    """Copy ``params`` minus the reserved RFC 9457 member names."""
+    return {k: v for k, v in params.items() if k not in _RESERVED_PROBLEM_MEMBERS}
+
+
 @dataclass(frozen=True, slots=True)
 class ProblemDetails:
-    """RFC 9457 Problem Details. Params ride along as extension ``members``."""
+    """RFC 9457 Problem Details. Params ride along as extension ``members``.
+
+    Members are public: they go on the wire verbatim, so never pass secrets as
+    params. A member named ``type``, ``title``, ``status``, ``detail``, or
+    ``instance`` is reserved and never reaches the wire form."""
 
     type: str
     title: str
@@ -70,8 +87,8 @@ class ProblemDetails:
     members: Mapping[str, ParamValue] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, ParamValue]:
-        """Flatten to the RFC 9457 wire object: members spread, core fields win."""
-        wire: dict[str, ParamValue] = dict(self.members)
+        """Flatten to the RFC 9457 wire object: non-reserved members, then core fields."""
+        wire: dict[str, ParamValue] = _extension_members(self.members)
         wire["type"] = self.type
         wire["title"] = self.title
         if self.status is not None:
