@@ -334,7 +334,9 @@ like `net.unreachable` — and then always speak in codes:
 - `classify(raw)` turns any raw failure into a stable code
 - `describe(code)` renders human text, through your own i18n if you have one
 - `to_problem_details(code).to_dict()` produces the [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457)
-  Problem Details JSON an API returns
+  Problem Details JSON an API returns. Params become public extension members, so never
+  pass secrets; params named `type`, `title`, `status`, `detail`, or `instance` are
+  reserved and dropped from the body
 
 ```python
 from edgeproc_core.errors import define_errors, starter_pack
