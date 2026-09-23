@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] — 2026-09-23
+
+This patch release ships a Problem Details security fix and moves every documented
+immutable source pin onto a commit that contains it. The partitioning code is unchanged.
+
 ### Security
 - **`to_problem_details` no longer lets params supply reserved RFC 9457 members.**
   Params were copied into `ProblemDetails.members` and spread first by `to_dict()`, so a
@@ -17,6 +22,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   all other params remain public extension members, as now documented. Mirrors the same
   fix in `@edgeproc/errors`. Python dict lookups were already own-key only, so the TS
   package's `Object.prototype` lookup bug has no counterpart here.
+
+### Fixed
+- **The documented immutable source pin now contains the Problem Details fix.** The 0.4.2
+  pin predated it. Every README and installation-guide source command now names the 0.4.3
+  release-preparation commit, which the gate builds, installs, version-checks as 0.4.3, and
+  isolation-checks. `SECURITY.md` marks releases before 0.4.3 superseded.
+
+### Changed
+- **Releases are built and verified by Dagger, and publication needs a manual dispatch.**
+  The hosted CI and release workflows now call the portable Dagger graph. Pushing a tag no
+  longer publishes: the `Dagger release candidate` workflow is dispatched with the existing
+  `vX.Y.Z` tag, requires that tag to name the exact current `main` commit with a green
+  `Dagger` check, reruns the gate, and exports one verified wheel and sdist. Its success
+  triggers the source-free OIDC `publish.yml` job, as described in `docs/OPERATIONS.md`.
+
+### Added
+- **An offline interactive architecture map** at `docs/architecture/index.html`, linked from
+  the README.
 
 ## [0.4.2] — 2026-08-13
 
@@ -551,7 +574,8 @@ shared-libs-python` stack going public together; live demo at https://edge-reco.
 - Full type hints and mypy strict compliance
 - Protocol-based design for extensibility
 
-[Unreleased]: https://github.com/hseshadr/edgeproc-core/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/hseshadr/edgeproc-core/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/hseshadr/edgeproc-core/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/hseshadr/edgeproc-core/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/hseshadr/edgeproc-core/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/hseshadr/edgeproc-core/compare/v0.3.0...v0.4.0

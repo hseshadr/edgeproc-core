@@ -34,10 +34,10 @@ dependency:
 
 ```bash
 # uv
-uv pip install "edgeproc-core==0.4.2"
+uv pip install "edgeproc-core==0.4.3"
 
 # pip
-python -m pip install "edgeproc-core==0.4.2"
+python -m pip install "edgeproc-core==0.4.3"
 ```
 
 For `pyproject.toml`:
@@ -46,14 +46,14 @@ For `pyproject.toml`:
 [project]
 requires-python = ">=3.13"
 dependencies = [
-  "edgeproc-core>=0.4.2",
+  "edgeproc-core>=0.4.3",
 ]
 ```
 
 For `requirements.txt`:
 
 ```text
-edgeproc-core==0.4.2
+edgeproc-core==0.4.3
 ```
 
 ### Installing from source instead
@@ -77,8 +77,9 @@ succeeds but gives you the old module name, and the verification snippet below
 fails with `ModuleNotFoundError: No module named 'edgeproc_core'`. Pin a commit
 at or after the rename, or install from PyPI as shown above.
 
-Install `0.4.2` or newer. `0.4.1` is superseded because its immutable installation
-guidance selected an unsupported source snapshot. `0.2.1` and `0.2.2` carry a cross-tenant delete defect —
+Install `0.4.3` or newer. `0.4.2` and earlier let a Problem Details param named `status`,
+`detail`, or `instance` reach the wire as that core member. `0.4.1` is superseded because its
+immutable installation guidance selected an unsupported source snapshot. `0.2.1` and `0.2.2` carry a cross-tenant delete defect —
 a `tenant_a`-scoped `delete()` destroyed `tenant_b`'s rows — fixed in `0.3.0`, and
 `0.3.0` itself ships without the `conformance` module its README documents.
 

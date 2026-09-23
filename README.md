@@ -63,8 +63,8 @@ bash examples/run_loop.sh
 implement `VectorIndex` against FAISS, pgvector, hnswlib, or another store and enforce
 authorization in that store too.
 
-**Artifact status:** This source and packaged README describe v0.4.2, alpha.
-Install 0.4.2; it supersedes 0.4.1's immutable installation guidance.
+**Artifact status:** This source and packaged README describe v0.4.3, alpha.
+Install 0.4.3; it carries the Problem Details reserved-member fix.
 
 The package is published on
 [PyPI](https://pypi.org/project/edgeproc-core/), so `pip install edgeproc-core`
@@ -208,13 +208,13 @@ uv pip install edgeproc-core
 
 In your `pyproject.toml`:
 ```toml
-dependencies = ["edgeproc-core==0.4.2"]
+dependencies = ["edgeproc-core==0.4.3"]
 ```
 
 Verify it worked:
 ```bash
 python -c "import edgeproc_core; print(edgeproc_core.__version__)"
-# 0.4.2
+# 0.4.3
 ```
 
 Prefer to build from source? Pin a full commit SHA — Git cannot repoint it, so
@@ -228,7 +228,7 @@ uv pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.gi
 > were cut before the import package was renamed to `edgeproc_core`, so they
 > ship the old `shared_libs_python` module and every example here would raise
 > `ModuleNotFoundError`. Pin a commit at or after the rename (like the one
-> above), or install from PyPI as shown first. `0.4.2` contains the strengthened
+> above), or install from PyPI as shown first. `0.4.3` contains the strengthened
 > source-install contract. `0.2.1` and `0.2.2` carry a cross-tenant
 > delete defect fixed in `0.3.0`, and `0.3.0` ships without the `conformance`
 > module its README documents.
