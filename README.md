@@ -1,40 +1,80 @@
 # edgeproc-core
 
-[![Dagger](https://github.com/hseshadr/edgeproc-core/actions/workflows/dagger.yml/badge.svg)](https://github.com/hseshadr/edgeproc-core/actions/workflows/dagger.yml)
-[![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+Keeps each customer's search results apart in a shared vector index, and gives errors stable codes, for Python apps.
 
-AI models turn text, images, and products into **embeddings** — long lists of
-numbers where similar things get similar numbers. Finding the embeddings closest
-to a query is called **vector search**, and it is how "more like this" features
-work.
+[![CI](https://github.com/hseshadr/edgeproc-core/actions/workflows/dagger.yml/badge.svg)](https://github.com/hseshadr/edgeproc-core/actions/workflows/dagger.yml)
+[![Version](https://img.shields.io/github/v/tag/hseshadr/edgeproc-core?label=version)](CHANGELOG.md)
+[![License](https://img.shields.io/github/license/hseshadr/edgeproc-core)](LICENSE)
 
-This library answers one specific, deceptively hard question about vector
-search: when your data belongs to many different owners — users, tenants, time
-periods — **how do you split it up so search stays fast and nobody ever sees
-anyone else's results?** You bring the search index (FAISS, pgvector, hnswlib,
-…); this library routes every vector into the right partition and merges
-search results back out. Swapping partitioning schemes is a one-line change,
-and the index backend never has to know.
+[Docs](docs/README.md) · [Quickstart](docs/installation-guide.md)
 
-Two things that promise does **not** mean. It holds for a *scoped* call — one
-you pass a partition key to. Pass no key and there is no filter: that is a
-deliberate cross-partition administrative read. And partition names are routing
-hints, never security principals — enforce isolation in your backing store too.
-The full contract is under [Partitioning strategies](#partitioning-strategies).
+```text
+input:  "acme-invoice" and "globex-invoice", identical, stored in ONE shared index; search as acme
+output: acme sees: [('acme-invoice', 0.0)]
 
-It is the bottom, most generic layer of a three-repo MIT-licensed stack — the
-partitioning *protocol* (a *protocol* here is just the set of methods a search
-backend must provide — Python's `typing.Protocol`, nothing to subclass),
-nothing more:
-
+input:  a raw failure shaped like an HTTP 402 response: {"status": 402}
+output: {'type': 'ai.provider.out_of_credits', 'title': 'Your provider account is out of credits. Add credits and try again.', 'status': 402}
 ```
-edge-reco        hybrid search + recommendations, running in the browser
-  └─ edge-proc   ships big files to devices and proves they arrived unmodified
-       └─ edgeproc-core   ← you are here: the vector-partitioning protocol
+<sub>Real output of the example below, run against `edgeproc-core` 0.4.3 installed from PyPI.</sub>
+
+## At a glance
+
+- **What it does** — Two small tools for Python backends. First, like one drawer per customer in a shared filing cabinet: AI features that find "similar" items store each item as a list of numbers (an *embedding*) in a search index (a *vector index*); this library decides which part of a shared index each customer's items go in, and makes a search for one customer return only that customer's items. Second, like the error codes on a washing machine, for software failures: it turns an HTTP 402, a timeout or "Failed to fetch" into one stable name such as `ai.provider.out_of_credits`, with readable text and the standard web error format (RFC 9457 "Problem Details").
+- **Who it's for** — A Python developer building a "more like this" or document-search feature that many customers share, who already has a search store (FAISS, pgvector, hnswlib, …) and must never show one customer another's results. Also anyone tired of rewriting the same error-handling `if` ladder in every layer of an app.
+- **What stays on your device / what leaves it** — Nothing leaves: it is a library with no network calls and no telemetry, and its only dependency is pydantic. Your vectors live in whatever search store you plug in; this library only routes calls to it and merges the answers.
+- **Runs on** — Python 3.13 or newer, on any operating system. You supply the search store; a small in-memory one is included for tests and examples.
+- **Not for** — Searching by itself: it ships no production index. Nor is it a security boundary on its own: a partition name is a routing hint, so enforce access control in your store too.
+- **Status** — Beta: v0.4.3 (pre-1.0), on [PyPI](https://pypi.org/project/edgeproc-core/). This source and packaged README describe v0.4.3. See [CHANGELOG](CHANGELOG.md).
+
+## Try it in 60 seconds
+
+Needs [uv](https://docs.astral.sh/uv/), which fetches Python 3.13 if you don't have it.
+
+```bash
+mkdir try-edgeproc-core && cd try-edgeproc-core && uv venv --python 3.13 && uv pip install edgeproc-core
 ```
 
-Everything the library does, end to end:
+Save this as `example.py` in that folder, then run `.venv/bin/python example.py`:
+
+```python
+import asyncio
+from edgeproc_core import BucketedPartitionStrategy, IndexManager, VectorEmbedding
+from edgeproc_core.errors import define_errors, starter_pack
+from edgeproc_core.vector_mgmt.testing import in_memory_factory
+
+async def main() -> None:
+    # Worst case: two customers forced into ONE shared index (num_buckets=1).
+    manager = IndexManager(BucketedPartitionStrategy(index_factory=in_memory_factory, num_buckets=1))
+    for owner in ("acme", "globex"):
+        await manager.insert([VectorEmbedding(entity_id=f"{owner}-invoice", embedding=[1.0, 0.0], metadata={"tenant_id": owner})])
+    print("acme sees:", await manager.search([1.0, 0.0], k=10, partition_key="acme"))
+
+asyncio.run(main())
+errors = define_errors(starter_pack)  # 18 ready-made error codes
+print(errors.to_problem_details(errors.classify({"status": 402})).to_dict())
+```
+
+It prints, verbatim. The two invoices are identical and share one index, yet acme sees only its own:
+
+```text
+acme sees: [('acme-invoice', 0.0)]
+{'type': 'ai.provider.out_of_credits', 'title': 'Your provider account is out of credits. Add credits and try again.', 'status': 402}
+```
+
+More runnable examples: [`examples/`](examples/). Clone the repo and run `bash examples/run_loop.sh`
+to walk every strategy and the error catalog against the bundled in-memory index.
+
+<!-- ======================== BELOW THE FOLD ======================== -->
+
+## How it works
+
+You tag each vector with its owner (`tenant_id`, `user_id`, or a key you invent). `IndexManager`
+asks the partitioning strategy which physical index that owner's vectors belong in (one global
+index, one of N hash buckets, or a hot or cold tier) and calls your backend there. Every scoped
+search, delete and stats call also passes the owner as a filter, so owners that share a physical
+index still see only their own rows. Results from several indexes are merged into one top-k list.
+The error catalog is a separate module: `classify` maps a raw failure to a code, `describe`
+renders it, and `to_problem_details` serializes it.
 
 ```mermaid
 flowchart TD
@@ -44,33 +84,76 @@ flowchart TD
     B[("Your search backend: FAISS, pgvector, hnswlib …<br/>this library ships none of them — it only decides<br/>which one each vector belongs in")]
     R["Top-k for that owner and nobody else<br/>10,000 vectors across 256 buckets:<br/>routing p50 5.8 ms, search p50 19.0 ms"]
     V --> M --> S --> B --> R
+
+    classDef blue fill:#e8f4f8,stroke:#7aa7b8,color:#171717
+    classDef purple fill:#f0e8f8,stroke:#9a7ab8,color:#171717
+    classDef orange fill:#f8f0e8,stroke:#b8987a,color:#171717
+    classDef green fill:#e8f8e8,stroke:#7ab87a,color:#171717
+    class V blue
+    class M,S purple
+    class B orange
+    class R green
 ```
 
-## Quickstart
+**[Explore the interactive architecture map →](docs/architecture/index.html)**
+(Archify, generated from [`docs/architecture/runtime.architecture.json`](docs/architecture/runtime.architecture.json)).
+Deep dive: [docs/vector-mgmt-architecture.md](docs/vector-mgmt-architecture.md).
 
-Run every shipped partitioning strategy against the bundled in-memory reference
-index. It inserts realistic tenant-scoped vectors, searches them, rebuilds a hot/cold
-partition, and shows canonical errors. No database or account is required.
+It is the bottom, most generic layer of a three-repo MIT-licensed stack: the partitioning
+*protocol* (the set of methods a search backend must provide, as a Python `typing.Protocol`,
+with nothing to subclass) and nothing more:
 
-```bash
-git clone https://github.com/hseshadr/edgeproc-core.git
-cd edgeproc-core
-uv sync
-bash examples/run_loop.sh
+```
+edge-reco        hybrid search + recommendations, running in the browser
+  └─ edge-proc   ships big files to devices and proves they arrived unmodified
+       └─ edgeproc-core   ← you are here: the vector-partitioning protocol
 ```
 
-`InMemoryVectorIndex` is for examples and conformance tests. Production callers
-implement `VectorIndex` against FAISS, pgvector, hnswlib, or another store and enforce
-authorization in that store too.
+## What you can do
 
-**Artifact status:** This source and packaged README describe v0.4.3, alpha.
-Install 0.4.3; it carries the Problem Details wire-safety fixes.
+- Route vectors into one global index, hash buckets, or hot/cold tiers, and switch with one line — [partitioning strategies](#partitioning-strategies)
+- Partition by any key, including composite keys — [generic partition keys](#generic-partition-keys)
+- Prove your own backend applies partition filters before it serves more than one tenant — [conformance suite](#implementing-your-own-backend)
+- Turn any raw failure into a stable code, readable text and RFC 9457 Problem Details — [canonical errors](#canonical-errors)
+- Run every strategy end to end against an in-memory index — [`examples/`](examples/)
 
-The package is published on
-[PyPI](https://pypi.org/project/edgeproc-core/), so `pip install edgeproc-core`
-is the supported install. See [Installation](#installation).
+## Why this and not X
 
-## Measured evidence
+| Alternative | It is the better choice when | This library is the better choice when |
+| --- | --- | --- |
+| One index per customer | you have a few large customers and can afford an index each | you have thousands to millions of owners, where per-owner indexes waste memory and startup time |
+| Your vector store's own namespaces or multi-tenancy | you are committed to that one store | you want the partitioning scheme to stay portable across FAISS, pgvector, hnswlib and tests |
+| A hand-rolled "global index + metadata filter" | you only ever need that one scheme | you want to move to buckets or hot/cold tiers without rewriting callers, and a conformance suite that proves the filter is applied |
+| Per-layer error `if` ladders | the app is tiny | the same failure must mean the same thing in the API, the UI and the logs (and in TypeScript, via `@edgeproc/errors`) |
+
+## Security and trust model
+
+- **Verified:** a scoped call is filtered by partition key inside the index, even when owners
+  collide in one physical index. [`tests/test_tenant_isolation.py`](tests/test_tenant_isolation.py)
+  forces `num_buckets=1` and checks it, and `assert_vector_index_conformance` checks the same
+  property for *your* backend. Releases are built by Dagger from an exact `main` commit and
+  published to PyPI by trusted publishing (OIDC) with attestations, from a job that first
+  checks the candidate's lineage.
+- **Refuses rather than warns:** the conformance suite raises `AssertionError` naming every
+  property your backend breaks; `define_errors` raises on a duplicate code; Problem Details drop
+  reserved members (`type`, `title`, `status`, `detail`, `instance`, `__proto__`, `constructor`,
+  `prototype`, `toJSON`) and any value that is not a plain string or finite number; the PyPI
+  publisher refuses a candidate that is not a successful dispatch of `release-candidate.yml`
+  for a commit on `main`.
+- **Not protected:** an *unscoped* call (no partition key) is a deliberate cross-partition
+  administrative read or delete; partition names are routing hints, never security
+  principals; a backend that ignores `filters` leaks across owners (run the conformance suite);
+  `InMemoryVectorIndex` is not a production store; Problem Details members are public, so never
+  pass secrets as params.
+- **Verify a release:** the wheel and sdist on PyPI carry PEP 740 attestations. Check one with
+  `pypi-attestations verify pypi --repository https://github.com/hseshadr/edgeproc-core pypi:edgeproc_core-0.4.3-py3-none-any.whl`,
+  or read `https://pypi.org/integrity/edgeproc-core/0.4.3/edgeproc_core-0.4.3-py3-none-any.whl/provenance`.
+
+See [SECURITY.md](SECURITY.md) for reporting a vulnerability, and
+[docs/OPERATIONS.md](docs/OPERATIONS.md) for the security, privacy, reliability, and
+measured-performance ownership contract.
+
+## What this proves / what it does not prove
 
 The hosted CI run and full local gate pass at **99.31% coverage measured with branches enabled**,
 with strict mypy, lint, and formatting. The gate runs `--cov-branch` and
@@ -81,7 +164,7 @@ and 100.00% of branches are covered. A gate step re-derives all three figures fr
 The bundled benchmark (`benchmarks/benchmark.py`) reports
 **routing p50 5.8 ms / p95 6.0 ms** for 10,000 embeddings across 256 buckets,
 and **reference search p50 19.0 ms / p95 19.2 ms** against the bundled
-in-memory index — see [`InMemoryVectorIndex`](#python-api-teaser) below for
+in-memory index — see [`InMemoryVectorIndex`](#a-minimal-search) below for
 what that reference index is (and isn't).
 
 Measured 2026-07-20 on an Apple M3 Pro (macOS 26.5, arm64, CPython 3.13.5),
@@ -94,16 +177,57 @@ promise for your hardware — reproduce with:
 uv run python benchmarks/benchmark.py
 ```
 
+It does **not** prove the recall or latency of any real backend (the numbers above come from
+the bundled in-memory reference index), that your backend isolates owners (run the conformance
+suite against it), or anything about `rebuild()` or tombstone attribution in your store.
+
+## Install
+
+Requires **Python 3.13 or newer**.
+
+Install from [PyPI](https://pypi.org/project/edgeproc-core/):
+
 ```bash
-uv sync
-uv run poe gate
+uv pip install edgeproc-core
 ```
 
-This repository is a protocol and reference implementation, not a hosted search
-service. The caller owns backend isolation, resource ceilings, and production SLOs;
-`edge-proc` supplies the local runtime that consumes these contracts.
+In your `pyproject.toml`:
+```toml
+dependencies = ["edgeproc-core==0.4.3"]
+```
 
-## Python API teaser
+Verify it worked:
+```bash
+python -c "import edgeproc_core; print(edgeproc_core.__version__)"
+# 0.4.3
+```
+
+Prefer to build from source? Pin a full commit SHA — Git cannot repoint it, so
+it is exactly as immutable as a release:
+
+```bash
+uv pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@7b3ab4de97441ae4be64c082ae432d914d65c240"
+```
+
+> **Why do source pins use a commit and not a tag?** Tags `v0.2.0` and older
+> were cut before the import package was renamed to `edgeproc_core`, so they
+> ship the old `shared_libs_python` module and every example here would raise
+> `ModuleNotFoundError`. Pin a commit at or after the rename (like the one
+> above), or install from PyPI as shown first. `0.4.3` contains the strengthened
+> source-install contract. `0.2.1` and `0.2.2` carry a cross-tenant
+> delete defect fixed in `0.3.0`, and `0.3.0` ships without the `conformance`
+> module its README documents.
+
+For local development:
+```bash
+git clone https://github.com/hseshadr/edgeproc-core.git
+cd edgeproc-core
+uv sync
+```
+
+## Usage & API
+
+### A minimal search
 
 A teaser against the bundled in-memory reference index — produces real output.
 
@@ -130,7 +254,7 @@ production you implement `VectorIndex` against your own backend. See
 FAISS-backed example, and [Implementing your own backend](#implementing-your-own-backend)
 for the conformance suite that proves yours is correct.
 
-## Implementing your own backend
+### Implementing your own backend
 
 If you implement `VectorIndex` yourself, **run the conformance suite against it.**
 One command tells you whether your backend is safe to put in front of more than one
@@ -196,96 +320,6 @@ shape an administrative delete ever reaches your backend in.
 What it does **not** grade: recall, latency, `rebuild()`, and how you attribute
 tombstones to a scope. Those are backend-specific and untested here.
 
-## Installation
-
-Requires **Python 3.13 or newer**.
-
-Install from [PyPI](https://pypi.org/project/edgeproc-core/):
-
-```bash
-uv pip install edgeproc-core
-```
-
-In your `pyproject.toml`:
-```toml
-dependencies = ["edgeproc-core==0.4.3"]
-```
-
-Verify it worked:
-```bash
-python -c "import edgeproc_core; print(edgeproc_core.__version__)"
-# 0.4.3
-```
-
-Prefer to build from source? Pin a full commit SHA — Git cannot repoint it, so
-it is exactly as immutable as a release:
-
-```bash
-uv pip install "edgeproc-core @ git+https://github.com/hseshadr/edgeproc-core.git@7b3ab4de97441ae4be64c082ae432d914d65c240"
-```
-
-> **Why do source pins use a commit and not a tag?** Tags `v0.2.0` and older
-> were cut before the import package was renamed to `edgeproc_core`, so they
-> ship the old `shared_libs_python` module and every example here would raise
-> `ModuleNotFoundError`. Pin a commit at or after the rename (like the one
-> above), or install from PyPI as shown first. `0.4.3` contains the strengthened
-> source-install contract. `0.2.1` and `0.2.2` carry a cross-tenant
-> delete defect fixed in `0.3.0`, and `0.3.0` ships without the `conformance`
-> module its README documents.
-
-For local development:
-```bash
-git clone https://github.com/hseshadr/edgeproc-core.git
-cd edgeproc-core
-uv sync
-```
-
-## Architecture
-
-Explore the [interactive runtime map](docs/architecture/index.html).
-
-## Under the hood (for developers)
-
-- **Two Protocols decouple everything.** The partitioning strategy is separated
-  from the index backend behind `VectorIndex` and `IndexFactory`. Swap the
-  strategy (`Global` / `Bucketed` / `TwoTier`) without touching the index; swap
-  the index without touching the strategy.
-- **Why it exists.** Every multi-tenant vector-search system rediscovers the
-  same partitioning patterns ("global + filter", "hash buckets", "hot/cold").
-  This library does that once, cleanly typed, so downstream projects
-  (`edge-proc`, …) can `import edgeproc_core` instead of reinventing it.
-- **Quality bar.** `mypy --strict` clean, xenon Grade A complexity, ≥90% branch
-  coverage. Backwards-compatible with the legacy `tenant_id` API.
-
-[`edge-proc`](https://github.com/hseshadr/edge-proc) implements this library's
-`VectorIndex` protocol over FAISS, and [`edge-reco`](https://github.com/hseshadr/edge-reco)
-([live demo](https://edge-reco.com)) is built on `edge-proc`. A clean partitioning
-protocol is what lets the vector index ship as a content-addressed, CDN-distributable,
-locally-runnable artifact — the foundation of zero-per-query-cost, offline-capable
-search.
-
-### Source tree
-
-```
-edgeproc_core/
-  vector_mgmt/
-    core/
-      types.py          # VectorEmbedding, IndexConfig, IndexStats, VectorIndex, IndexFactory
-      index_manager.py  # IndexManager — routes inserts, merges top-k searches
-    partitioning/
-      strategies.py     # GlobalPartitionStrategy, BucketedPartitionStrategy, TwoTierPartitionStrategy
-    testing.py          # InMemoryVectorIndex — reference impl for tests + examples
-    conformance.py      # assert_vector_index_conformance — grade your own backend
-  errors/               # canonical error codes (see "Canonical errors" below)
-    types.py            # Category, CatalogEntry, ProblemDetails (RFC 9457)
-    registry.py         # Registry + define_errors — classify / describe / serialize
-    starter_pack.py     # 18 universal codes, ready to reuse
-    raw.py              # duck-typing helpers for failures of unknown shape
-    canonical_error.py  # CanonicalError, DuplicateCodeError
-examples/               # basic / custom-key / composite-key / two-tier / errors, plus run_loop.sh
-tests/                  # pytest suite (≥90% branch coverage enforced by the gate)
-```
-
 ### Partitioning strategies
 
 All strategies accept `partition_key_name` (default `"tenant_id"`) and an
@@ -316,6 +350,17 @@ The deep dive (rationale, scaling math, recommended `m` / `ef_construction`)
 lives in [`docs/vector-mgmt-architecture.md`](docs/vector-mgmt-architecture.md).
 The security, privacy, reliability, and measured-performance ownership contract
 lives in [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
+
+### Generic partition keys
+
+The library was originally `tenant_id`-only. v0.1+ supports any partition key:
+
+- store it in `VectorEmbedding.metadata` (e.g. `{"user_id": "u1"}`),
+- pass `partition_key_name="user_id"` to your strategy and manager,
+- optionally pass a `partition_key_extractor` for composite keys (see
+  [`examples/composite_partition_key.py`](examples/composite_partition_key.py)).
+
+The legacy `tenant_id` field on `VectorEmbedding` still works.
 
 ### Canonical errors
 
@@ -355,18 +400,79 @@ rejects a duplicate code at registration. The codes match the TypeScript
 
 Runnable demo: [`examples/canonical_errors.py`](examples/canonical_errors.py).
 
-### Generic partition keys
+### Source tree
 
-The library was originally `tenant_id`-only. v0.1+ supports any partition key:
+```
+edgeproc_core/
+  vector_mgmt/
+    core/
+      types.py          # VectorEmbedding, IndexConfig, IndexStats, VectorIndex, IndexFactory
+      index_manager.py  # IndexManager — routes inserts, merges top-k searches
+    partitioning/
+      strategies.py     # GlobalPartitionStrategy, BucketedPartitionStrategy, TwoTierPartitionStrategy
+    testing.py          # InMemoryVectorIndex — reference impl for tests + examples
+    conformance.py      # assert_vector_index_conformance — grade your own backend
+  errors/               # canonical error codes (see "Canonical errors" below)
+    types.py            # Category, CatalogEntry, ProblemDetails (RFC 9457)
+    registry.py         # Registry + define_errors — classify / describe / serialize
+    starter_pack.py     # 18 universal codes, ready to reuse
+    raw.py              # duck-typing helpers for failures of unknown shape
+    canonical_error.py  # CanonicalError, DuplicateCodeError
+examples/               # basic / custom-key / composite-key / two-tier / errors, plus run_loop.sh
+tests/                  # pytest suite (≥90% branch coverage enforced by the gate)
+```
 
-- store it in `VectorEmbedding.metadata` (e.g. `{"user_id": "u1"}`),
-- pass `partition_key_name="user_id"` to your strategy and manager,
-- optionally pass a `partition_key_extractor` for composite keys (see
-  [`examples/composite_partition_key.py`](examples/composite_partition_key.py)).
+### Design notes
 
-The legacy `tenant_id` field on `VectorEmbedding` still works.
+- **Two Protocols decouple everything.** The partitioning strategy is separated
+  from the index backend behind `VectorIndex` and `IndexFactory`. Swap the
+  strategy (`Global` / `Bucketed` / `TwoTier`) without touching the index; swap
+  the index without touching the strategy.
+- **Why it exists.** Every multi-tenant vector-search system rediscovers the
+  same partitioning patterns ("global + filter", "hash buckets", "hot/cold").
+  This library does that once, cleanly typed, so downstream projects
+  (`edge-proc`, …) can `import edgeproc_core` instead of reinventing it.
+- **Quality bar.** `mypy --strict` clean, xenon Grade A complexity, ≥90% branch
+  coverage. Backwards-compatible with the legacy `tenant_id` API.
 
-### Development
+[`edge-proc`](https://github.com/hseshadr/edge-proc) implements this library's
+`VectorIndex` protocol over FAISS, and [`edge-reco`](https://github.com/hseshadr/edge-reco)
+([live demo](https://edge-reco.com)) is built on `edge-proc`. A clean partitioning
+protocol is what lets the vector index ship as a content-addressed, CDN-distributable,
+locally-runnable artifact — the foundation of zero-per-query-cost, offline-capable
+search.
+
+## Configuration
+
+There are no environment variables or config files. Every knob is a constructor argument:
+
+| Knob | Where | Default | What it changes |
+| --- | --- | --- | --- |
+| `partition_key_name` | every strategy, `IndexManager` | `"tenant_id"` | which metadata key names the owner |
+| `partition_key_extractor` | every strategy | `None` | a callable for composite keys |
+| `num_buckets` | `BucketedPartitionStrategy` | `256` | how many physical indexes owners are hashed into |
+| `hot_retention_days` | `TwoTierPartitionStrategy` | `30` | how old (by `metadata["created_at"]`) a vector gets before it moves to the cold tier |
+| `index_factory` | every strategy | — (required) | builds your backend's index for a partition name |
+| `m`, `ef_construction`, `ef_search`, `dimension`, `distance_metric` | `IndexConfig` | `32`, `200`, `100`, `1536`, `"cosine"` | passed through to your backend; this library builds no HNSW graph |
+| rebuild thresholds | `IndexManager.rebuild_if_needed` | tombstones > 10% or size > 1000 MB | when a physical index is rebuilt |
+
+## Limitations & roadmap
+
+**Shipped (v0.4.3):** the three partitioning strategies, generic and composite partition
+keys, `IndexManager`, the in-memory reference index, the backend conformance suite, and the
+canonical error catalog with RFC 9457 Problem Details.
+
+**Planned (not shipped):** some sections of
+[docs/vector-mgmt-architecture.md](docs/vector-mgmt-architecture.md) describe planned
+features (for example atomic-swap reindexing and query-optimization patterns); they are design
+notes, not shipped code. No production backend ships in this package.
+
+## Getting help
+
+- **GitHub Issues** — Best for: bugs and concrete feature requests.
+- **Private security advisory** — Best for: security reports; see [SECURITY.md](SECURITY.md).
+
+## Contributing / development
 
 ```bash
 uv sync
@@ -383,6 +489,8 @@ uv run poe test
 CI passes. The whole public surface — not just edited code — must clear it
 before a release tag is cut.
 
-## License
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-MIT.
+## License / Citation
+
+MIT — see [LICENSE](LICENSE).

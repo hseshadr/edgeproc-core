@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "edgeproc-core"
 version = "0.4.3"
-description = "Vector partitioning and generic partition-key management for Python."
+description = "Keeps each customer's search results apart in a shared vector index, and gives errors stable codes, for Python apps."
 readme = "README.md"
 requires-python = ">=3.13"
 license = {text = "MIT"}
@@ -13,7 +13,7 @@ authors = [
     {name = "Harish Seshadri", email = "harish.seshadri@gmail.com"}
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
