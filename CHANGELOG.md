@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **The PyPI publisher now proves the candidate's lineage before it touches any artifact.**
+  `publish.yml` published the `workflow_run` artifact gated only on
+  `workflow_run.head_branch == default_branch`, which a dispatch on a **tag** named
+  `main` also satisfies. Its first step now uses `gh api` to require that the triggering
+  run is a completed, successful `workflow_dispatch` of `release-candidate.yml` in this
+  repository for exactly `head_sha`, and that `compare/$HEAD_SHA...$GITHUB_SHA` is
+  `ahead` or `identical` (the candidate commit is on the default branch). Mirrors the
+  same fix in `@edgeproc/privacy-core`. The workflow keeps its `publish.yml` filename,
+  which PyPI trusted publishing is bound to. `tests/test_workflow_security.py` pins
+  every clause.
+
+### Changed
+- **The README follows the portfolio template.** Its first screen is written for a
+  non-specialist: a plain tagline, a hero that is the real output of a 15-line example run
+  against `edgeproc-core` 0.4.3 from PyPI (two customers forced into one shared index, and
+  `classify({"status": 402})` rendered as RFC 9457 Problem Details), an "At a glance" list
+  and a "Try it in 60 seconds" section. The deep content (conformance suite, strategies,
+  canonical errors, install pins, measured evidence) is kept below the fold, alongside new
+  "Why this and not X", security, configuration and limitations sections. The
+  `pyproject.toml` `description` is now the same tagline and the classifier moves to
+  `Development Status :: 4 - Beta`; the published 0.4.3 keeps its old metadata.
+  `tests/test_readme_contract.py` (inside `uv run poe gate`) pins the first-screen
+  structure, and the quickstart-ordering docs test now targets the new headings.
+
 ## [0.4.3] — 2026-09-23
 
 This patch release ships Problem Details wire-safety fixes, closes a shell-injection path

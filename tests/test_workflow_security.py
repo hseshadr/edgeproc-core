@@ -249,7 +249,7 @@ def test_should_flag_an_input_pasted_into_a_run_or_dagger_args(tmp_path: Path) -
     ]
 
 
-def test_should_keep_oidc_publisher_source_free_and_shell_free() -> None:
+def test_should_keep_oidc_publisher_source_free() -> None:
     document = _workflow("publish.yml")
     publish = _job(document, "publish")
     steps = _steps(publish)
@@ -266,15 +266,82 @@ def test_should_keep_oidc_publisher_source_free_and_shell_free() -> None:
         "contents": "read",
         "id-token": "write",
     }
-    assert [_action(step) for step in steps] == [DOWNLOAD_ACTION, PUBLISH_ACTION]
-    assert all("run" not in step for step in steps)
-    download = _mapping(steps[0].get("with"))
+    # The lineage check is the only shell; nothing checks out or builds source.
+    assert [_action(step) for step in steps] == ["", DOWNLOAD_ACTION, PUBLISH_ACTION]
+    assert ["run" in step for step in steps] == [True, False, False]
+    download = _mapping(steps[1].get("with"))
     assert download.get("name") == "edgeproc-core-${{ github.event.workflow_run.head_sha }}"
     assert download.get("run-id") == "${{ github.event.workflow_run.id }}"
     assert download.get("github-token") == "${{ github.token }}"
-    settings = _mapping(steps[1].get("with"))
+    settings = _mapping(steps[2].get("with"))
     assert settings.get("packages-dir") == "release/dist"
     assert settings.get("attestations") is True
+
+
+def _lineage_step() -> dict[str, object]:
+    return _steps(_job(_workflow("publish.yml"), "publish"))[0]
+
+
+def test_should_verify_the_candidate_lineage_before_touching_any_artifact() -> None:
+    # Given the first publish step
+    lineage = _lineage_step()
+    script = str(lineage.get("run", ""))
+    # Then it is the lineage check, fed only through quoted environment values
+    assert lineage.get("name") == "Verify the candidate's lineage"
+    assert lineage.get("shell") == "bash"
+    assert _mapping(lineage.get("env")) == {
+        "GH_TOKEN": "${{ github.token }}",
+        "HEAD_SHA": "${{ github.event.workflow_run.head_sha }}",
+        "RUN_ID": "${{ github.event.workflow_run.id }}",
+    }
+    assert "${{" not in script
+    assert "set -euo pipefail" in script
+    assert '[[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]' in script
+    assert '[[ "$RUN_ID" =~ ^[0-9]+$ ]]' in script
+
+
+@pytest.mark.parametrize(
+    "clause",
+    [
+        ".head_sha == $sha",
+        '.event == "workflow_dispatch"',
+        '.status == "completed"',
+        '.conclusion == "success"',
+        '(.path | split("@")[0]) == ".github/workflows/release-candidate.yml"',
+        ".repository.full_name == $repo",
+        ".head_repository.full_name == $repo",
+    ],
+)
+def test_should_require_a_successful_release_candidate_dispatch_for_head_sha(
+    clause: str,
+) -> None:
+    # Given the lineage script
+    script = str(_lineage_step().get("run", ""))
+    # Then the triggering run is fetched from this repository and every clause
+    # of "a successful workflow_dispatch of release-candidate.yml here, for
+    # exactly HEAD_SHA" is asserted with jq -e (a false result fails the step)
+    assert 'gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID"' in script
+    assert "jq -e" in script
+    assert clause in script
+
+
+def test_should_require_head_sha_to_be_reachable_from_the_default_branch() -> None:
+    # Given the lineage script
+    script = str(_lineage_step().get("run", ""))
+    # Then HEAD_SHA must be main's commit or an ancestor of it: the job `if`
+    # alone (head_branch == default_branch) is satisfied by a TAG named `main`
+    assert (
+        'gh api "repos/$GITHUB_REPOSITORY/compare/$HEAD_SHA...$GITHUB_SHA" --jq .status' in script
+    )
+    assert '[[ "$status" == identical || "$status" == ahead ]]' in script
+
+
+def test_should_keep_the_trusted_publisher_workflow_filename() -> None:
+    # PyPI trusted publishing is bound to this filename; renaming it breaks
+    # every future release silently.
+    assert (WORKFLOWS / "publish.yml").is_file()
+    text = (WORKFLOWS / "publish.yml").read_text(encoding="utf-8")
+    assert "bound to this workflow FILENAME (publish.yml)" in text
 
 
 @pytest.mark.parametrize("workflow", ["ci.yml", "dagger-shadow.yml"])

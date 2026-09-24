@@ -528,10 +528,11 @@ def test_should_describe_the_packaged_release_without_a_stale_registry_claim() -
 
 def test_readme_leads_with_a_copy_paste_demo_before_evidence() -> None:
     readme = _read("README.md")
-    quickstart = readme.index("## Quickstart")
+    quickstart = readme.index("## Try it in 60 seconds")
+    evidence = readme.index("## What this proves / what it does not prove")
 
-    assert quickstart < readme.index("## Measured evidence")
-    assert "bash examples/run_loop.sh" in readme[quickstart : readme.index("## Measured evidence")]
+    assert quickstart < evidence
+    assert "bash examples/run_loop.sh" in readme[quickstart:evidence]
 
 
 def test_readme_states_the_python_requirement_before_installing() -> None:
