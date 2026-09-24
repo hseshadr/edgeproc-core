@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **The PyPI publisher now proves the candidate's lineage before it touches any artifact.**
+  `publish.yml` published the `workflow_run` artifact gated only on
+  `workflow_run.head_branch == default_branch`, which a dispatch on a **tag** named
+  `main` also satisfies. Its first step now uses `gh api` to require that the triggering
+  run is a completed, successful `workflow_dispatch` of `release-candidate.yml` in this
+  repository for exactly `head_sha`, and that `compare/$HEAD_SHA...$GITHUB_SHA` is
+  `ahead` or `identical` (the candidate commit is on the default branch). Mirrors the
+  same fix in `@edgeproc/privacy-core`. The workflow keeps its `publish.yml` filename,
+  which PyPI trusted publishing is bound to. `tests/test_workflow_security.py` pins
+  every clause.
+
 ## [0.4.3] — 2026-09-23
 
 This patch release ships Problem Details wire-safety fixes, closes a shell-injection path
