@@ -266,9 +266,10 @@ def test_should_keep_oidc_publisher_source_free() -> None:
         "contents": "read",
         "id-token": "write",
     }
-    # The lineage check is the only shell; nothing checks out or builds source.
-    assert [_action(step) for step in steps] == ["", DOWNLOAD_ACTION, PUBLISH_ACTION]
-    assert ["run" in step for step in steps] == [True, False, False]
+    # Lineage is proven by the central Dagger function; no step runs repository shell,
+    # and nothing checks out or builds source.
+    assert [_action(step) for step in steps] == [DAGGER_ACTION, DOWNLOAD_ACTION, PUBLISH_ACTION]
+    assert [step for step in steps if "run" in step] == []
     download = _mapping(steps[1].get("with"))
     assert download.get("name") == "edgeproc-core-${{ github.event.workflow_run.head_sha }}"
     assert download.get("run-id") == "${{ github.event.workflow_run.id }}"
@@ -278,62 +279,51 @@ def test_should_keep_oidc_publisher_source_free() -> None:
     assert settings.get("attestations") is True
 
 
+#: The central lineage proof (hseshadr/ci#49), pinned at a literal hseshadr/ci commit.
+LINEAGE_MODULE = re.compile(r"^github\.com/hseshadr/ci/modules/portfolio-foundation@[0-9a-f]{40}$")
+#: Exact args: every value is a quoted env var bound to the triggering run, so a
+#: hard-coded run id or SHA cannot make the proof about a different run.
+LINEAGE_ARGS = (
+    'release-lineage --github-token=env:GH_TOKEN --repository="$GITHUB_REPOSITORY" '
+    '--run-id="$RUN_ID" --head-sha="$HEAD_SHA" --publish-run-id="$GITHUB_RUN_ID"'
+)
+
+
 def _lineage_step() -> dict[str, object]:
     return _steps(_job(_workflow("publish.yml"), "publish"))[0]
 
 
-def test_should_verify_the_candidate_lineage_before_touching_any_artifact() -> None:
-    # Given the first publish step
+def test_should_prove_the_candidate_lineage_in_dagger_before_touching_any_artifact() -> None:
+    # Given the first publish step. The job `if` (head_branch == default_branch) is
+    # satisfied by a dispatch on a TAG named `main`, so this proof must run first.
     lineage = _lineage_step()
-    script = str(lineage.get("run", ""))
-    # Then it is the lineage check, fed only through quoted environment values
-    assert lineage.get("name") == "Verify the candidate's lineage"
-    assert lineage.get("shell") == "bash"
+    invocation = _mapping(lineage.get("with"))
+
+    # Then it is the central release-lineage call, fed only through quoted env values
+    assert _action(lineage) == DAGGER_ACTION
     assert _mapping(lineage.get("env")) == {
         "GH_TOKEN": "${{ github.token }}",
-        "HEAD_SHA": "${{ github.event.workflow_run.head_sha }}",
         "RUN_ID": "${{ github.event.workflow_run.id }}",
+        "HEAD_SHA": "${{ github.event.workflow_run.head_sha }}",
     }
-    assert "${{" not in script
-    assert "set -euo pipefail" in script
-    assert '[[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]' in script
-    assert '[[ "$RUN_ID" =~ ^[0-9]+$ ]]' in script
+    assert LINEAGE_MODULE.fullmatch(str(invocation.pop("module")))
+    assert invocation == {"version": "0.21.8", "verb": "call", "args": LINEAGE_ARGS}
 
 
-@pytest.mark.parametrize(
-    "clause",
-    [
-        ".head_sha == $sha",
-        '.event == "workflow_dispatch"',
-        '.status == "completed"',
-        '.conclusion == "success"',
-        '(.path | split("@")[0]) == ".github/workflows/release-candidate.yml"',
-        ".repository.full_name == $repo",
-        ".head_repository.full_name == $repo",
-    ],
-)
-def test_should_require_a_successful_release_candidate_dispatch_for_head_sha(
-    clause: str,
-) -> None:
-    # Given the lineage script
-    script = str(_lineage_step().get("run", ""))
-    # Then the triggering run is fetched from this repository and every clause
-    # of "a successful workflow_dispatch of release-candidate.yml here, for
-    # exactly HEAD_SHA" is asserted with jq -e (a false result fails the step)
-    assert 'gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID"' in script
-    assert "jq -e" in script
-    assert clause in script
+def test_should_paste_no_expression_into_any_publisher_dagger_input() -> None:
+    # Given every Dagger step of the publisher (the action pastes these into bash)
+    steps = _steps(_job(_workflow("publish.yml"), "publish"))
+    pasted = [
+        str(value)
+        for step in steps
+        if _action(step) == DAGGER_ACTION
+        for key, value in _mapping(step.get("with")).items()
+        if key != "module"
+    ]
 
-
-def test_should_require_head_sha_to_be_reachable_from_the_default_branch() -> None:
-    # Given the lineage script
-    script = str(_lineage_step().get("run", ""))
-    # Then HEAD_SHA must be main's commit or an ancestor of it: the job `if`
-    # alone (head_branch == default_branch) is satisfied by a TAG named `main`
-    assert (
-        'gh api "repos/$GITHUB_REPOSITORY/compare/$HEAD_SHA...$GITHUB_SHA" --jq .status' in script
-    )
-    assert '[[ "$status" == identical || "$status" == ahead ]]' in script
+    # Then no `${{ }}` expression reaches script text
+    assert pasted
+    assert [value for value in pasted if "${{" in value] == []
 
 
 def test_should_keep_the_trusted_publisher_workflow_filename() -> None:
