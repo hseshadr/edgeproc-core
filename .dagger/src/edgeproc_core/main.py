@@ -18,7 +18,7 @@ GIT_PACKAGE: Final = "git=1:2.47.3-0+deb13u1"
 REPOSITORY: Final = "hseshadr/edgeproc-core"
 REPOSITORY_URL: Final = f"https://github.com/{REPOSITORY}.git"
 PROJECT_NAME: Final = "edgeproc-core"
-CENTRAL_MODULE_SHA: Final = "95c72573fc11ea6732abb7f7fe8b59c7d245d927"
+CENTRAL_MODULE_SHA: Final = "9d491851fc5c65ad4a388ed2dd7bb4def4e1f007"
 SOURCE_EXCLUDES: Final = [
     ".git",
     ".venv",
