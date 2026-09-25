@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Security
+- **The release candidate is back to the fleet's shell-free shape: checkout, Dagger,
+  upload.** The central `hseshadr/ci` fleet policy forbids `run:` steps and reported
+  `shell-step` and `candidate-order` on `release-candidate.yml`. The dispatched tag still
+  never reaches script text. It enters the pinned `dagger/dagger-for-github` step only as the
+  `TAG` environment variable, and `args` hold only double-quoted variables
+  (`--tag="$TAG" --commit-sha="$GITHUB_SHA"`), so bash expands the tag as one inert word.
+  The separate `vX.Y.Z` shell guard is gone, because Dagger already rejects a requested tag
+  that differs from the verified candidate's tag. `tests/test_workflow_security.py` now
+  expands the real `args` in bash with hostile tags and asserts that each one arrives as a
+  single literal argument and runs nothing.
 - **The PyPI publisher now proves the candidate's lineage before it touches any artifact.**
   `publish.yml` published the `workflow_run` artifact gated only on
   `workflow_run.head_branch == default_branch`, which a dispatch on a **tag** named
