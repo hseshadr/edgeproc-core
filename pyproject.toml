@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "edgeproc-core"
 version = "0.4.3"
-description = "Keeps each customer's search results apart in a shared vector index, and gives errors stable codes, for Python apps."
+description = "A Python library that keeps each customer's search results separate in a shared index, and gives errors stable codes."
 readme = "README.md"
 requires-python = ">=3.13"
 license = {text = "MIT"}

@@ -1,9 +1,9 @@
-"""Fail the gate when the README's published coverage figures drift from reality.
+"""Fail the gate when docs/ARCHITECTURE.md's published coverage figures drift from reality.
 
-The README states two specific numbers. Numbers in prose rot silently: the suite
+docs/ARCHITECTURE.md states two specific numbers. Numbers in prose rot silently: the suite
 grows, the real figure moves, and the doc keeps advertising the old one. This
 script re-derives both figures from the `coverage.xml` that the test run just
-wrote and compares them to what the README claims.
+wrote and compares them to what docs/ARCHITECTURE.md claims.
 
 It runs as a gate step *after* `pytest`, not as a test, because pytest writes
 `coverage.xml` at session end — a test reading that file mid-session would only
@@ -23,7 +23,7 @@ from typing import NoReturn
 
 ROOT = Path(__file__).resolve().parents[1]
 COVERAGE_XML = ROOT / "coverage.xml"
-README = ROOT / "README.md"
+CLAIMS_DOC = ROOT / "docs" / "ARCHITECTURE.md"
 
 #: Coverage rates are rounded to two decimals in prose; allow only that much slack.
 TOLERANCE_PERCENT = 0.005
@@ -41,7 +41,7 @@ _ROOT_ATTR = r'<coverage\b[^>]*\b{attribute}="([0-9.]+)"'
 
 @dataclass(frozen=True)
 class Claim:
-    """One coverage figure the README publishes, and the rate that backs it."""
+    """One coverage figure docs/ARCHITECTURE.md publishes, and the rate that backs it."""
 
     label: str
     published: float
@@ -55,7 +55,7 @@ class Claim:
         verdict = "DRIFTED" if self.drifted else "ok"
         return (
             f"  {verdict:>7}  {self.label:<10} "
-            f"README says {self.published:.2f}%, coverage.xml measures {self.measured:.2f}%"
+            f"doc says {self.published:.2f}%, coverage.xml measures {self.measured:.2f}%"
         )
 
 
@@ -90,7 +90,7 @@ def _measured_rates() -> tuple[float, float, float]:
 def _published_rate(pattern: re.Pattern[str], label: str, readme: str) -> float:
     match = pattern.search(readme)
     if match is None:
-        _die(f"README no longer publishes a {label} coverage figure; this check went blind.")
+        _die(f"{CLAIMS_DOC.name} no longer publishes a {label} coverage figure; check is blind.")
     return float(match.group(1))
 
 
@@ -101,7 +101,7 @@ def _die(message: str) -> NoReturn:
 
 def _collect_claims() -> list[Claim]:
     total, statement, branch = _measured_rates()
-    readme = README.read_text(encoding="utf-8")
+    readme = CLAIMS_DOC.read_text(encoding="utf-8")
     return [
         Claim("total", _published_rate(TOTAL_CLAIM, "total", readme), total),
         Claim("statement", _published_rate(STATEMENT_CLAIM, "statement", readme), statement),
@@ -118,13 +118,13 @@ def main() -> int:
     if drifted:
         names = ", ".join(claim.label for claim in drifted)
         print(
-            f"\nFAIL: README {names} coverage claim(s) no longer match the measured run.\n"
-            f"Update the README to the measured figure — do not lower the gate.",
+            f"\nFAIL: ARCHITECTURE.md {names} coverage claim(s) no longer match the measured run.\n"
+            f"Update docs/ARCHITECTURE.md to the measured figure — do not lower the gate.",
             file=sys.stderr,
         )
         return 1
 
-    print("\nOK: README coverage claims match the measured run.")
+    print("\nOK: ARCHITECTURE.md coverage claims match the measured run.")
     return 0
 
 

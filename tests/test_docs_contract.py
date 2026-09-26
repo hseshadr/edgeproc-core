@@ -204,6 +204,8 @@ PUBLIC_SURFACES = (
     "CONTRIBUTING.md",
     "SECURITY.md",
     "pyproject.toml",
+    "docs/ARCHITECTURE.md",
+    "docs/GETTING_STARTED.md",
     "docs/installation-guide.md",
     "docs/OPERATIONS.md",
     "docs/vector-mgmt-architecture.md",
@@ -437,7 +439,11 @@ def test_moving_ref_is_labelled_development_only() -> None:
 
 
 def test_readme_and_guide_agree_on_the_pinned_ref() -> None:
-    """One pin, documented once, in both places — so they cannot drift apart."""
+    """Any source pin the README shows is the guide's pin, so they cannot drift apart.
+
+    The plain-English README leaves source installs to the installation guide, so
+    it may show no pin at all; the guide must always carry one.
+    """
     readme_refs = {
         ref
         for ref in re.findall(rf"{re.escape(REPO_SLUG)}\.git@([0-9a-f]{{40}})", _read("README.md"))
@@ -449,7 +455,8 @@ def test_readme_and_guide_agree_on_the_pinned_ref() -> None:
             _read("docs/installation-guide.md"),
         )
     }
-    assert readme_refs == guide_refs, (
+    assert guide_refs, "the installation guide documents no full-SHA source pin"
+    assert readme_refs <= guide_refs, (
         f"README pins {readme_refs or '{}'} but the installation guide pins "
         f"{guide_refs or '{}'}. A reader following either must get the same code."
     )
@@ -507,7 +514,7 @@ def test_readme_links_the_operations_contract() -> None:
 
 def test_readme_status_matches_package_version() -> None:
     version = tomllib.loads(_read("pyproject.toml"))["project"]["version"]
-    assert f"This source and packaged README describe v{version}" in _read("README.md")
+    assert f"This README describes v{version}" in _read("README.md")
 
 
 def test_should_describe_the_packaged_release_without_a_stale_registry_claim() -> None:
@@ -519,7 +526,7 @@ def test_should_describe_the_packaged_release_without_a_stale_registry_claim() -
     readme = _read("README.md")
 
     # Then
-    assert f"This source and packaged README describe v{version}" in readme
+    assert f"This README describes v{version}" in readme
     assert f'"edgeproc-core=={version}"' in readme
     assert f"# {version}" in readme
     assert "PyPI currently serves" not in readme
@@ -527,12 +534,14 @@ def test_should_describe_the_packaged_release_without_a_stale_registry_claim() -
 
 
 def test_readme_leads_with_a_copy_paste_demo_before_evidence() -> None:
+    """The demo comes first; the evidence lives in the architecture doc it links."""
     readme = _read("README.md")
-    quickstart = readme.index("## Try it in 60 seconds")
-    evidence = readme.index("## What this proves / what it does not prove")
+    quickstart = readme.index("## Try it")
+    how_it_works = readme.index("## How it works")
 
-    assert quickstart < evidence
-    assert "bash examples/run_loop.sh" in readme[quickstart:evidence]
+    assert quickstart < how_it_works
+    assert "bash examples/run_loop.sh" in readme[quickstart:how_it_works]
+    assert "## What the tests prove" in _read("docs/ARCHITECTURE.md")
 
 
 def test_readme_states_the_python_requirement_before_installing() -> None:
