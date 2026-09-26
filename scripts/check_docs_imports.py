@@ -29,7 +29,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-DOCS: tuple[str, ...] = ("README.md", "docs/installation-guide.md")
+DOCS: tuple[str, ...] = ("README.md", "docs/ARCHITECTURE.md", "docs/installation-guide.md")
 """Docs whose fenced blocks a reader copies and runs verbatim."""
 
 FENCE = re.compile(r"^```[^\n]*\n(.*?)^```", re.M | re.S)

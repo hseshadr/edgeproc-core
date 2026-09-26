@@ -181,7 +181,7 @@ signal the guard exists to raise.
 
 ### Benchmark figures
 
-If you change a number published in `README.md` or `docs/OPERATIONS.md`,
+If you change a number published in `docs/ARCHITECTURE.md` or `docs/OPERATIONS.md`,
 re-measure it (`uv run python benchmarks/benchmark.py`), state the hardware and
 date, and update `REFERENCE` in `tests/test_benchmark_claims.py` in the same
 commit. That test compares the docs against the recorded measurement — it never

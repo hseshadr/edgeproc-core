@@ -97,7 +97,7 @@ print(VectorEmbedding(entity_id="example", embedding=[0.1, 0.2]))
 PY
 ```
 
-Then follow the root [README quickstart](../README.md#60-second-quickstart) or
+Then follow the root [README walkthrough](../README.md#try-it) or
 run the bundled end-to-end examples:
 
 ```bash

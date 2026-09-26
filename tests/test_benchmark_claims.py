@@ -11,7 +11,7 @@ constants*: `REFERENCE` below records what was actually measured (2026-07-20,
 Apple M3 Pro, macOS 26.5 arm64, CPython 3.13.5, 20 samples, idle machine), and
 the docs carry the figures a reader sees. The test asserts they agree within a
 3x band, that no published figure exceeds the benchmark's own budget, and that
-README and OPERATIONS publish identical numbers.
+ARCHITECTURE and OPERATIONS publish identical numbers.
 
 A 3x band cannot fail on machine variance — nothing is timed here — but it does
 catch the real drift: a doc edited to claim an order-of-magnitude better number,
@@ -47,7 +47,7 @@ BUDGET_ATTRIBUTE: dict[str, str] = {
     "reference search.p95": "SEARCH_P95_MS",
 }
 
-DOCS = ("README.md", "docs/OPERATIONS.md")
+DOCS = ("docs/ARCHITECTURE.md", "docs/OPERATIONS.md")
 FIGURE = re.compile(r"\*\*(routing|reference search) p50 ([\d.]+) ms / p95 ([\d.]+) ms\*\*")
 """The label lives inside the bold marker so the match is unambiguous: prose
 mentioning "routing" elsewhere can never be mistaken for a published figure."""
@@ -97,7 +97,7 @@ def test_published_figures_match_the_recorded_measurement(document: str) -> None
 
 def test_both_documents_publish_the_same_figures() -> None:
     """A number updated in one doc and forgotten in the other is drift."""
-    assert _published("README.md") == _published("docs/OPERATIONS.md")
+    assert _published("docs/ARCHITECTURE.md") == _published("docs/OPERATIONS.md")
 
 
 @pytest.mark.parametrize(("label", "attribute"), sorted(BUDGET_ATTRIBUTE.items()))

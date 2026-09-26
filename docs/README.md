@@ -2,12 +2,23 @@
 
 ## Documents
 
+### [ARCHITECTURE.md](./ARCHITECTURE.md)
+The technical companion to the README: routing and filtering, the three strategies, the
+backend conformance suite, the error module, configuration, the security model, and what the
+tests and benchmark prove.
+
+### [GETTING_STARTED.md](./GETTING_STARTED.md)
+For developers: from a fresh clone to a green local build and a first change.
+
 ### [installation-guide.md](./installation-guide.md)
 How to install this package in your projects:
 - Installing a pinned release from PyPI, or a pinned commit from source
 - Adding to pyproject.toml and requirements.txt
 - Verifying the install actually imports
 - Troubleshooting common issues
+
+### [OPERATIONS.md](./OPERATIONS.md)
+The security, privacy, reliability and measured-performance contract.
 
 ### [vector-mgmt-architecture.md](./vector-mgmt-architecture.md)
 Complete specification for HNSW indexing and partitioning strategies:
@@ -19,7 +30,8 @@ Complete specification for HNSW indexing and partitioning strategies:
 
 ## Library Usage
 
-See the main [README.md](../README.md) for installation and usage examples.
+See the main [README.md](../README.md) for installation and a walkthrough, and
+[ARCHITECTURE.md](./ARCHITECTURE.md) for the API in depth.
 
 ## Design Principles
 
