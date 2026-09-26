@@ -48,7 +48,7 @@ Success ends with `All examples ran successfully.`
 uv run poe gate
 ```
 
-This is what CI runs. In order: ruff lint, ruff format check, `mypy --strict`, a complexity
+These are the checks CI runs. In order: ruff lint, ruff format check, `mypy --strict`, a complexity
 check (xenon, every function grade A), the tests with branch coverage (must stay at or above
 90%), a check that the coverage figures in [ARCHITECTURE.md](ARCHITECTURE.md) match the run,
 and a check that every import shown in the docs works against a freshly built wheel.
@@ -64,12 +64,17 @@ OK: ARCHITECTURE.md coverage claims match the measured run.
 OK: every documented import resolved inside the wheel
 ```
 
-CI runs the same thing inside a container through Dagger (the `Dagger` check on every PR). To
-run that container locally, with Docker running:
+CI runs the same checks inside a container through Dagger (the `Dagger` check on every PR),
+and then one more: the benchmark (`benchmarks/benchmark.py`), which fails if routing or search
+is slower than its time budget. To run that container locally, with Docker running:
 
 ```bash
 dagger call ci --commit-sha=$(git rev-parse HEAD)
 ```
+
+It took about 3 minutes here. On a busy laptop the benchmark step can fail even though nothing
+is wrong: it did in this run, measuring a routing p95 of 266 ms while other jobs were running.
+Rerun it on an idle machine, or rely on the hosted `Dagger` check.
 
 Useful single steps while you work:
 
@@ -137,9 +142,9 @@ their matching rules are meant to behave the same in both languages.
 
 - **Branch names:** `feat/…`, `fix/…`, `docs/…`, `test/…`, `chore/…`, matching the
   [Conventional Commits](https://www.conventionalcommits.org/) type of your commit.
-- **Before pushing:** `uv run poe gate` must pass. It mirrors CI exactly.
-- **What CI checks:** the `Dagger` workflow runs the same steps in a container on every PR. A
-  separate weekly `security-audit.yml` runs pip-audit on the dependencies.
+- **Before pushing:** `uv run poe gate` must pass.
+- **What CI checks:** the `Dagger` workflow runs the same steps in a container on every PR, plus
+  the benchmark. A separate weekly `security-audit.yml` runs pip-audit on the dependencies.
 - **What reviewers look for:**
   - a test that fails without your change;
   - a `[Unreleased]` CHANGELOG entry (released sections never change;
