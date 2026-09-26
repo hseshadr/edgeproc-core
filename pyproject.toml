@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling==1.32.0"]
+requires = ["hatchling==1.32.4"]
 build-backend = "hatchling.build"
 
 [project]
@@ -29,7 +29,7 @@ dependencies = [
 [project.optional-dependencies]
 pgvector = [
     "pgvector>=0.5.0",
-    "sqlalchemy[asyncio]>=2.0.51",
+    "sqlalchemy[asyncio]>=2.0.54",
     "numpy>=1.26.0",
 ]
 dev = [
@@ -42,7 +42,7 @@ dev = [
     "radon>=6.0.0",
     "poethepoet>=0.48.0",
     "pyyaml>=6.0",  # tests/test_workflow_security.py parses .github/workflows/*.yml
-    "hatchling==1.32.0",  # locked build backend used without isolation
+    "hatchling==1.32.4",  # locked build backend used without isolation
     "pip-audit==2.10.1",  # locked dependency-audit executable and transitive graph
 ]
 
@@ -57,7 +57,7 @@ dev = [
     "radon>=6.0.0",
     "poethepoet>=0.48.0",
     "pyyaml>=6.0",  # tests/test_workflow_security.py parses .github/workflows/*.yml
-    "hatchling==1.32.0",  # locked build backend used without isolation
+    "hatchling==1.32.4",  # locked build backend used without isolation
     "pip-audit==2.10.1",  # locked dependency-audit executable and transitive graph
 ]
 
